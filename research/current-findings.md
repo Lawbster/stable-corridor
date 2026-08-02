@@ -168,6 +168,15 @@ transport failure and feed recovery, respectively. The Binance pilot stale
 threshold is also raised from 30 to 120 seconds based on the observed quiet
 reference market. No captured data was deleted.
 
+On the corrected VPS run at commit `944c66c`, the collector remained online
+with zero PM2 restarts, all 13 feeds healthy and research-eligible, empty
+health reason codes, and zero journal errors. The process reported about
+230 MiB in PM2 and 230.3 MiB RSS in health. Kraken recovered twice because
+quiet `EURC/EUR` exceeded the original 60-second threshold; both recoveries
+completed without affecting the collector process. To avoid needless
+session churn while retaining bounded refresh, the Kraken pilot threshold
+is raised to five minutes.
+
 ## Maker versus taker safeguard
 
 A market order is always a taker order. A normal limit order can also be a taker if its price immediately matches the opposite side of the book.

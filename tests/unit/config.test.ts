@@ -48,7 +48,7 @@ describe("collector configuration", () => {
       "USDC/USD"
     ]);
     expect(config.kraken.depth).toBe(25);
-    expect(config.kraken.staleAfterMs).toBe(60_000);
+    expect(config.kraken.staleAfterMs).toBe(300_000);
   });
 
   it("rejects relative runtime paths", () => {

@@ -62,7 +62,7 @@
       "USDC/USD"
     ],
     "depth": 25,
-    "staleAfterMs": 60000,
+    "staleAfterMs": 300000,
     "maxRecentTradeIds": 10000,
     "maxFrameBytes": 1048576
   }

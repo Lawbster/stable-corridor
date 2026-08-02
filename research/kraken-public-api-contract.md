@@ -93,6 +93,13 @@ Recovery always creates a new connection ID, reloads public metadata,
 resubscribes, and waits for a fresh checksum-valid snapshot. State is not
 silently carried across connections.
 
+The first corrected VPS sample showed that `EURC/EUR` can remain unchanged
+for more than 60 seconds while the Kraken connection and other subscribed
+products remain active. The bounded pilot therefore uses a five-minute
+per-product market-message threshold. If a product remains quiet beyond
+that threshold, the adapter still refreshes the complete Kraken session and
+requires new acknowledgements and checksum-valid snapshots.
+
 ## Live public probe
 
 On 2026-08-02, a bounded unauthenticated probe received successful book
