@@ -174,6 +174,7 @@ export class PublicCollectorRunner {
       throw new Error("Public collector runner already started");
     }
     this.#started = true;
+    this.#log("stable-corridor collector storage preflight started");
     this.#lastStorage = await measureStorage(this.#config.dataRoot);
     const storageReason = storageLimitReason(
       this.#lastStorage,
@@ -184,6 +185,11 @@ export class PublicCollectorRunner {
         `Collector storage gate failed at startup: ${storageReason}`
       );
     }
+    this.#log(
+      `stable-corridor collector storage preflight passed ` +
+        `dataBytes=${this.#lastStorage.dataRootBytes} ` +
+        `freeBytes=${this.#lastStorage.diskFreeBytes}`
+    );
 
     this.#healthTimer = setInterval(() => {
       const now = this.#now();
@@ -275,6 +281,7 @@ export class PublicCollectorRunner {
       return;
     }
     this.#connectInProgress.add(venue);
+    this.#log(`${venue} public connection setup started`);
     try {
       switch (venue) {
         case "coinbase":
@@ -291,6 +298,7 @@ export class PublicCollectorRunner {
           break;
       }
       this.#venueErrors.delete(venue);
+      this.#log(`${venue} public connection session opened`);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       this.#venueErrors.set(venue, reason.slice(0, 128));
@@ -313,7 +321,8 @@ export class PublicCollectorRunner {
     );
     try {
       const metadata = await fetchCoinbasePublicProductsMetadata(
-        this.#config.coinbase.products
+        this.#config.coinbase.products,
+        { signal: this.#restSignal() }
       );
       await this.#append(
         metadata.map((product, index) =>
@@ -368,7 +377,8 @@ export class PublicCollectorRunner {
     );
     try {
       const exchangeInfo = await fetchBinancePublicExchangeInfo(
-        this.#config.binance.products
+        this.#config.binance.products,
+        { signal: this.#restSignal() }
       );
       await this.#append(
         this.#binance.ingestExchangeInfo(
@@ -421,7 +431,9 @@ export class PublicCollectorRunner {
     for (const product of this.#config.binance.products) {
       let synchronized = false;
       for (let attempt = 0; attempt < 5; attempt += 1) {
-        const snapshot = await fetchBinancePublicDepthSnapshot(product);
+        const snapshot = await fetchBinancePublicDepthSnapshot(product, {
+          signal: this.#restSignal()
+        });
         await session.drain();
         await this.#handleVenueEvents(
           "binance",
@@ -457,7 +469,8 @@ export class PublicCollectorRunner {
     );
     try {
       const metadata = await fetchBybitPublicInstruments(
-        this.#config.bybit.products
+        this.#config.bybit.products,
+        { signal: this.#restSignal() }
       );
       for (let index = 0; index < metadata.length; index += 1) {
         await this.#append(
@@ -507,7 +520,8 @@ export class PublicCollectorRunner {
     );
     try {
       const metadata = await fetchKrakenPublicAssetPairs(
-        this.#config.kraken.products
+        this.#config.kraken.products,
+        { signal: this.#restSignal() }
       );
       await this.#append(
         this.#kraken.ingestAssetPairs(metadata, this.#now())
@@ -815,5 +829,11 @@ export class PublicCollectorRunner {
       return;
     }
     await this.#sink.append(events);
+  }
+
+  #restSignal(): AbortSignal {
+    return AbortSignal.timeout(
+      this.#config.runtime.restRequestTimeoutMs
+    );
   }
 }

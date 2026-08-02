@@ -21,6 +21,7 @@ describe("collector configuration", () => {
     expect(config.storage.maxDataBytes).toBe(10 * 1024 * 1024 * 1024);
     expect(config.storage.minFreeBytes).toBe(40 * 1024 * 1024 * 1024);
     expect(config.runtime.healthIntervalMs).toBe(30_000);
+    expect(config.runtime.restRequestTimeoutMs).toBe(10_000);
     expect(config.coinbase.products).toEqual([
       "EURC-USDC",
       "USDC-EUR"
@@ -67,7 +68,8 @@ describe("collector configuration", () => {
       runtime: {
         healthIntervalMs: 30_000,
         staleCheckIntervalMs: 5_000,
-        reconnectDelayMs: 5_000
+        reconnectDelayMs: 5_000,
+        restRequestTimeoutMs: 10_000
       },
       book: {
         depth: 20,
@@ -151,7 +153,8 @@ describe("collector configuration", () => {
       runtime: {
         healthIntervalMs: 30_000,
         staleCheckIntervalMs: 5_000,
-        reconnectDelayMs: 5_000
+        reconnectDelayMs: 5_000,
+        restRequestTimeoutMs: 10_000
       },
       book: {
         depth: 20,

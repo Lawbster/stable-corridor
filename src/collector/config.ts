@@ -98,7 +98,8 @@ export const collectorConfigSchema = z.strictObject({
   runtime: z.strictObject({
     healthIntervalMs: positiveSafeIntegerSchema,
     staleCheckIntervalMs: positiveSafeIntegerSchema,
-    reconnectDelayMs: positiveSafeIntegerSchema
+    reconnectDelayMs: positiveSafeIntegerSchema,
+    restRequestTimeoutMs: positiveSafeIntegerSchema.max(60_000)
   }),
   book: z.strictObject({
     depth: positiveSafeIntegerSchema.max(1_000),

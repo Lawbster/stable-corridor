@@ -24,7 +24,7 @@
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "format:check": "node scripts/check-format.mjs",
     "lint": "npm run typecheck && npm run check:boundaries",
-    "start:collector": "node dist/collector/main.js",
+    "start:collector": "node dist/collector/entrypoint.js",
     "test": "vitest run",
     "test:integration": "vitest run --project integration",
     "test:replay": "vitest run --project replay",

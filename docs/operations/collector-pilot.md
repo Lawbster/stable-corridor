@@ -76,7 +76,8 @@ Review `config/collector.json` before starting. The pilot defaults are:
 - journal part ceiling: 512 MiB;
 - persisted book depth: 20 levels per side;
 - periodic checkpoint: 60 seconds;
-- health publication: 30 seconds.
+- health publication: 30 seconds;
+- public REST request timeout: 10 seconds.
 
 No automatic retention deletion exists. Reaching either storage limit
 causes a clean collector stop.

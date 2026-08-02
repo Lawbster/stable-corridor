@@ -14,7 +14,8 @@
   "runtime": {
     "healthIntervalMs": 30000,
     "staleCheckIntervalMs": 5000,
-    "reconnectDelayMs": 5000
+    "reconnectDelayMs": 5000,
+    "restRequestTimeoutMs": 10000
   },
   "book": {
     "depth": 20,

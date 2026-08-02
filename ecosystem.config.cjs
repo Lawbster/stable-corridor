@@ -17,7 +17,7 @@ module.exports = {
     {
       name: "stable-corridor-collector",
       cwd: "/opt/stable-corridor",
-      script: "dist/collector/main.js",
+      script: "dist/collector/entrypoint.js",
       args: ["/opt/stable-corridor/config/collector.json"],
       interpreter: nodeInterpreter,
       node_args: ["--enable-source-maps"],
