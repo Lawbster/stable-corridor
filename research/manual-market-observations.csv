@@ -1,0 +1,3 @@
+observed_date,observed_time_utc,venue,product,best_bid,best_ask,spread_absolute,spread_bps,best_bid_size_base,best_ask_size_base,tick_size,time_quality,notes
+2026-08-02,,coinbase,EURC-USDC,1.1521,1.1522,0.0001,0.87,5089,822,0.0001,date_only,"Authenticated UI order-book screenshot supplied in chat; screenshot not retained; no contemporaneous fair-value observation"
+2026-08-02,00:20,kraken,EURC-USDC,1.15224,1.15313,0.00089,7.72,700.900084,121.47920319,0.00001,screen_clock,"Authenticated UI order-book screenshot supplied in chat; tick independently verified through public AssetPairs metadata; screenshot not retained"

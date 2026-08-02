@@ -1,0 +1,110 @@
+# Current Findings
+
+**As of:** 2026-08-02
+**Research state:** deterministic public fixtures and collector contract only; no forward dataset or opportunity replay result
+
+## Working thesis
+
+The candidate is dislocation-only, post-only EURC/USDC market making using pre-positioned finite inventory. Multi-venue EUR/USD and stablecoin markets provide fair value. Ordinary cross-exchange transfer arbitrage is not the target.
+
+Coinbase Advanced is the initial execution candidate only if the operator verifies market access and account-specific designated-stablepair pricing. Binance, Bybit, and Kraken initially serve as public price-discovery and possible later rebalancing references.
+
+## What is not yet known
+
+- Exact maker treatment for the Coinbase products; the operator's previews imply approximately 0.10 bp when an order may take liquidity.
+- Account-specific Binance pricing and promotion status for the relevant products.
+- Account-specific Bybit pricing for `USDCEUR`.
+- Kraken USDC/Solana deposit support and any withdrawal hold or recipient-information workflow.
+- Coinbase and Bybit SEPA fee and practical timing details.
+- A licensed, sufficiently timestamped conventional EUR/USD reference source.
+- Whether dislocations survive conservative fee, queue, latency, inventory, rebalance, peg, and venue-failure modeling.
+
+## Verified account-level access
+
+On 2026-08-01, the operator verified that Coinbase Advanced exposes actionable buy and sell order forms for both `USDC-EUR` and `EURC-USDC`. The displayed fee estimates imply approximately 0.10 bp on the previewed orders. `EURC-USDC` exposes a post-only option, but post-only maker treatment and completed-fill fees have not been verified.
+
+No balances, screenshots, account identifiers, or sensitive limits are retained in the repository.
+
+On 2026-08-02, Coinbase's public product metadata returned `fx_stablecoin=true` for both products. `EURC-USDC` was online and limit-only with a base increment of `1` and quote increment of `0.0001`; `USDC-EUR` was online with a base increment of `0.01` and quote increment of `0.0001`. Combined with Coinbase's published zero-maker stablepair treatment, this is sufficient to model a versioned `0.00 bp` maker fee in research. The account preview and first eventual approved pilot fill must still be reconciled before any live reliance.
+
+The public `post_only=false` product field means the whole market is not restricted to post-only mode. It does not disable the order-level Post Only option. At order level, Post Only rejects an order that would immediately take liquidity, ensuring an accepted eventual fill is maker.
+
+## Rebalancing-rail working model
+
+A stablecoin transfer can repair a venue-location imbalance but cannot change total portfolio currency exposure. For example, moving USDC to Coinbase replenishes Coinbase USDC, but it does not offset aggregate EUR/EURC acquired elsewhere. Currency composition must eventually be repaired through opposite fills, an explicit conversion trade, or a fiat/issuer rail.
+
+SEPA is therefore not required for each cycle or necessarily for initial profitability. It is a slow periodic funding, cash-out, and hard-unwind route. A crypto-only operating loop remains viable for research if:
+
+- both venues support the same native asset on the same network;
+- the complete transfer and any conversion cost are measured;
+- crediting time, withdrawal availability, manual/regulatory steps, and stranded-capital time are modeled;
+- finite inventory can remain bounded between rebalances;
+- the strategy is not presented as locked arbitrage without a reliable redemption route.
+
+Each rebalance route will be evaluated as a versioned cost and delay observation rather than assuming that a low-fee blockchain makes the exchange withdrawal free or automatic.
+
+### Coinbase withdrawal observations
+
+On 2026-08-02, authenticated Coinbase previews showed:
+
+- USDC withdrawal to a Solana wallet with no displayed fee and a 16-second average transfer estimate;
+- an Ethereum option reported at NOK 1.08;
+- EURC withdrawal support on Solana, Ethereum, and Base;
+- no displayed fee for EURC withdrawal on Solana or Base.
+
+This makes Coinbase-side nominal transfer cost unlikely to be the limiting economic factor for infrequent batched rebalancing. It does not yet establish end-to-end exchange credit latency or availability. Before treating a route as usable, research must verify the exact native asset/network at the destination, current deposit status, confirmation requirements, direct exchange/CASP handling, and time until the deposit is tradeable.
+
+On 2026-08-02, the operator verified that Binance supports native USDC deposits on Solana and does not support EURC. A real Coinbase-to-Binance USDC transfer over Solana completed in approximately 5 minutes. Based on this result and repeated operator experience, research will use 5 minutes as the typical delay and 30 minutes as the conservative ordinary-case rebalance delay. Longer stress scenarios and disabled deposits/withdrawals remain mandatory.
+
+Binance's lack of EURC support does not block the primary candidate. Coinbase can own the EURC leg while `USDC-EUR` on Coinbase supplies the offsetting EUR/USDC inventory trade. Binance can remain a public fair-value source and a possible USDC/EUR inventory venue without ever receiving EURC.
+
+The operator also verified that Binance `EURUSDC` is tradeable with an approximate 5 EUR/USD-equivalent minimum. The account is Regular User tier. Without BNB fee payment, the displayed fees are `9.5 bp` taker and `10 bp` maker. Enabling the 25% BNB payment discount displays `7.125 bp` taker and `7.5 bp` maker, but the account has no BNB available. Research must therefore use the undiscounted 9.5/10 bp rates and must not assume BNB inventory.
+
+At these fees, Binance is rejected as a routine execution or hedge venue for sub-10-bp dislocations. A maker order is not cheaper than a taker order on this product. Binance remains useful for public fair value, USDC/Solana inventory transport, exceptional rebalance, and periodic cash off-ramp.
+
+Binance's public `exchangeInfo` metadata independently reports `EURUSDC` as trading, with a `5` minimum notional, `0.0001` price tick, `0.1 EUR` quantity step, and `LIMIT_MAKER` support. `LIMIT_MAKER` is Binance's explicit Post Only order type.
+
+The operator already has EUR SEPA configured with Binance and considers it an easy fiat off-ramp. This is classified as a periodic cash-out and contingency rail, not a time-sensitive strategy leg. Its current fee, settlement time, limits, and maintenance status remain account observations to capture before including it in an all-in return calculation.
+
+On 2026-08-02, the operator confirmed that Coinbase supports both trading USDC to EUR and withdrawing EUR through an already available SEPA route. Coinbase is therefore the preferred cash off-ramp because its observed USDC-EUR trading cost is materially lower than Binance EURUSDC. Binance SEPA remains a contingency route.
+
+An authenticated Binance outbound USDC preview in the Solana route context displayed a fixed `0.30 USDC` network fee. Transfer routes must therefore be modeled directionally:
+
+- Coinbase to Binance, USDC/Solana: no Coinbase fee observed; approximately 5 minutes in one completed sample;
+- Binance to Coinbase/external, USDC/Solana: `0.30 USDC` outbound fee observed; credit time not measured.
+
+The fixed Binance fee equals `30 bp` on a 100 USDC transfer, `3 bp` on 1,000 USDC, `0.30 bp` on 10,000 USDC, and `0.10 bp` on 30,000 USDC. It is negligible only when amortized over a sufficiently large, infrequent rebalance.
+
+## Kraken account observation
+
+On 2026-08-02, the operator confirmed Kraken Pro access and a tradeable `EURC/USDC` limit order form with Post Only available. The authenticated fee display showed `20 bp` maker and `20 bp` taker. A 100 EURC preview at `1.15241 USDC` showed `115.241 USDC` notional and an estimated `0.230482 USDC` fee, consistent with 20 bp.
+
+At the same observation, the visible best bid and ask were `1.15224` and `1.15313`, a spread of approximately `7.72 bp`. The maker fee alone exceeded that entire displayed spread. Kraken is therefore rejected as a routine maker venue at the current tier, but remains useful as an independent public fair-value source and may qualify as a backup transfer or fiat rail after the remaining funding checks.
+
+Kraken's public AssetPairs metadata reported all five planned reference products online. `EURC/USDC` has a minimum order of `4 EURC`, minimum cost of `0.5 USDC`, `0.00001` tick, and eight-decimal quantity precision. `EURC/EUR`, `EURC/USD`, `USDC/EUR`, and `USDC/USD` also returned online with small minimums. The operator subsequently confirmed authenticated buy/sell access and Post Only availability for all four.
+
+An additional buy preview displayed a `0.19 USDC` fee, confirming that buying EURC on `EURC/USDC` charges the trading fee in quote asset USDC. The preview notional was not retained, so the fee amount is not used to infer a second rate.
+
+Kraken's authenticated withdrawal UI showed native USDC on Solana with a fixed `0.7367 USDC` withdrawal fee and `0.1473 USDC` displayed minimum. Ethereum displayed `0.4786 USDC`, Base displayed `1 USDC`, and Ink native USDC displayed no withdrawal fee. Account-specific USDC deposit support on Solana remains to be explicitly confirmed before considering the route operational.
+
+EURC withdrawal is available only on Ethereum and costs `0.3 EURC`. Kraken therefore does not supply a Solana or Base EURC bridge to Coinbase. The fixed EURC fee equals `30 bp` on 100 EURC, `3 bp` on 1,000 EURC, and `0.3 bp` on 10,000 EURC, before any destination or conversion costs.
+
+EUR SEPA is available with a `2 EUR` minimum, `1 EUR` flat fee, and `0-3 business day` estimate. It is suitable as a periodic fiat rail rather than a time-sensitive strategy leg. Holds, address-whitelisting delay, and recipient-information behavior were not tested.
+
+## Coinbase public adapter finding
+
+On 2026-08-02, a live unauthenticated probe of Coinbase Exchange WebSocket `level2` returned a subscription error stating that `level2`, `level3`, and `full` now require authentication. No credentials were added or used. Coinbase Advanced Trade's public market-data WebSocket was then verified unauthenticated for both `EURC-USDC` and `USDC-EUR`, including `level2`, `market_trades`, `status`, and `heartbeats`.
+
+The implemented A3 adapter treats Coinbase `level2` quantities as absolute sizes, removes zero-size levels, preserves connection and venue sequence state, and fails closed on a sequence gap, trade-ID gap, stale or unavailable product, malformed message, oversized frame, update before snapshot, duplicate trade snapshot, or crossed book. Coinbase documents trade `side` as the maker side, so the normalized persisted side is inverted to represent the aggressor.
+
+The public Advanced Trade product REST response reported a `2 USDC` quote minimum for `EURC-USDC`, while the older Exchange product response reported `1 USDC` and the operator observed an approximately `1` unit UI minimum. The live `status` channel also reported a `0.01` quote increment where public REST reported `0.0001`. The adapter therefore treats Advanced Trade public REST as the product-rules authority, uses `status` for availability rather than increments, records the discrepancies, and requires current metadata instead of silently reconciling conflicting fields.
+
+## Maker versus taker safeguard
+
+A market order is always a taker order. A normal limit order can also be a taker if its price immediately matches the opposite side of the book.
+
+A Post Only order, called Limit Maker on some Binance surfaces, changes this behavior: the exchange may place it on the book as maker liquidity, but must reject it if it would execute immediately. This prevents an intended maker order from unexpectedly paying taker fees when the book changes between decision and arrival.
+
+## Current conclusion
+
+No edge has been proven. The A3 Coinbase public adapter is complete locally. The next separately approved technical gate is an A4 Binance public reference adapter; bounded forward collection and deterministic, no-look-ahead opportunity replay remain later gates. The next operator job is the sanitized access audit in `research/access-audit.md`.

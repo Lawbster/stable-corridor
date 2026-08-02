@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "processName": "stable-corridor-collector",
+  "dataRoot": "/var/lib/stable-corridor/data",
+  "healthFile": "/var/lib/stable-corridor/state/collector-health.json",
+  "journal": {
+    "maxPartBytes": 536870912,
+    "syncEveryAppend": true
+  },
+  "storage": {
+    "maxDataBytes": 10737418240,
+    "minFreeBytes": 42949672960
+  },
+  "book": {
+    "depth": 20,
+    "checkpointIntervalMs": 60000
+  },
+  "coinbase": {
+    "products": [
+      "EURC-USDC",
+      "USDC-EUR"
+    ],
+    "staleAfterMs": 5000,
+    "maxTrackedLevelsPerSide": 10000,
+    "maxFrameBytes": 8388608
+  }
+}

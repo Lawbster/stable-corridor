@@ -1,0 +1,42 @@
+{
+  "name": "stable-corridor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Public-data research foundation for the Stable Corridor project.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=24.11.0 <25"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check": "npm run format:check && npm run lint && npm run test && npm run build",
+    "check:boundaries": "node scripts/check-boundaries.mjs",
+    "format:check": "node scripts/check-format.mjs",
+    "lint": "npm run typecheck && npm run check:boundaries",
+    "test": "vitest run",
+    "test:integration": "vitest run --project integration",
+    "test:replay": "vitest run --project replay",
+    "test:unit": "vitest run --project unit",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "typescript": "6.0.2",
+    "vite": "7.3.6",
+    "vitest": "4.1.10"
+  }
+}

@@ -1,0 +1,30 @@
+# Dependencies and build output
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+config/*.json
+!config/*.example.json
+
+# Runtime data must not enter Git
+data/
+state/
+incidents/
+logs/
+*.log
+
+# Account evidence is deliberately kept outside the repository
+private/
+account-evidence/
+research/account-evidence/
+
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

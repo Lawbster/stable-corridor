@@ -1,0 +1,6 @@
+observed_date,observed_time_utc,venue,product,account_tier,fee_payment_mode,maker_bps,taker_bps,currently_applicable,source_quality,notes
+2026-08-01,,coinbase,EURC-USDC,account_specific,native,0,0.1,true,public_designation_plus_authenticated_preview,"Maker from fx_stablecoin designation and published schedule; taker implied by account preview; recheck before use"
+2026-08-01,,coinbase,USDC-EUR,account_specific,native,0,0.1,true,public_designation_plus_authenticated_preview,"Maker from fx_stablecoin designation and published schedule; taker implied by account preview; recheck before use"
+2026-08-02,,binance,EURUSDC,Regular User,native,10,9.5,true,authenticated_ui,"No BNB available for fee payment"
+2026-08-02,,binance,EURUSDC,Regular User,BNB,7.5,7.125,false,authenticated_ui,"25% BNB payment discount displayed but inapplicable without BNB inventory"
+2026-08-02,00:20,kraken,EURC-USDC,entry_stablecoin_fx,native,20,20,true,authenticated_ui,"Post Only available; 100 EURC preview showed 0.230482 USDC estimated fee on 115.241 USDC notional; separate buy preview showed 0.19 USDC and confirmed quote-asset fee payment"

@@ -1,0 +1,6 @@
+observed_date,observed_time_utc,source_venue,destination_venue,asset,network,source_fee_display,elapsed_seconds_approx,destination_credited,amount_retained,notes
+2026-08-02,,coinbase,binance,USDC,solana,free,300,true,false,"Operator-reported completed transfer; no amount, address, transaction identifier, or screenshot retained"
+2026-08-02,,binance,external_or_coinbase,USDC,solana,0.30 USDC,,false,false,"Authenticated withdrawal preview only; no transfer submitted; no amount, address, account limit, or screenshot retained"
+2026-08-02,,kraken,external_or_exchange,USDC,solana,0.7367 USDC,,false,false,"Authenticated withdrawal preview; native USDC; displayed minimum 0.1473 USDC; account-specific deposit support not yet confirmed"
+2026-08-02,,kraken,external_or_exchange,EURC,ethereum,0.3 EURC,,false,false,"Authenticated withdrawal preview; Ethereum was the only EURC network; minimum not recorded"
+2026-08-02,,kraken,bank,EUR,sepa,1 EUR,,false,false,"Authenticated fiat rail observation; 2 EUR minimum and 0-3 business day estimate; no withdrawal submitted"
