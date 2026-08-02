@@ -6,3 +6,4 @@ observed_date,observed_time_utc,source_venue,destination_venue,asset,network,sou
 2026-08-02,,kraken,bank,EUR,sepa,1 EUR,,false,false,"Authenticated fiat rail observation; 2 EUR minimum and 0-3 business day estimate; no withdrawal submitted"
 2026-08-02,,bybit,external_or_exchange,USDC,solana,1 USDC,,false,false,"Operator-reported authenticated withdrawal preview; flat fee; no transfer reported"
 2026-08-02,,bybit,external_or_exchange,USDC,base,0.5 USDC,,false,false,"Operator-reported authenticated withdrawal preview; flat fee; no transfer reported"
+2026-08-02,,coinbase,bank,EUR,sepa,free,,false,false,"Authenticated fiat withdrawal observation; displayed estimate 0-3 business days; no settlement sample retained"

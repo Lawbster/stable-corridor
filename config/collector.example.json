@@ -34,5 +34,17 @@
     "maxTrackedLevelsPerSide": 10000,
     "maxBufferedDepthEvents": 10000,
     "maxFrameBytes": 1048576
+  },
+  "bybit": {
+    "products": [
+      "USDTEUR",
+      "USDCEUR",
+      "USDCUSDT"
+    ],
+    "staleAfterMs": 30000,
+    "maxTrackedLevelsPerSide": 10000,
+    "maxRecentTradeIds": 10000,
+    "maxFrameBytes": 1048576,
+    "pingIntervalMs": 20000
   }
 }

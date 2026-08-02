@@ -17,7 +17,12 @@ const forbiddenReferences = [
   "/api/v3/account",
   "/api/v3/openOrders",
   "/api/v3/userDataStream",
-  "/sapi/"
+  "/sapi/",
+  "wss://stream.bybit.com/v5/private",
+  "wss://stream.bybit.com/v5/trade",
+  "/v5/order/",
+  "/v5/account/",
+  "/v5/asset/withdraw/"
 ];
 const allowedDependencies = new Set(["zod"]);
 

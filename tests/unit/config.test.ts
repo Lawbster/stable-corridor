@@ -31,6 +31,13 @@ describe("collector configuration", () => {
       "USDCUSD"
     ]);
     expect(config.binance.staleAfterMs).toBe(30_000);
+    expect(config.bybit.products).toEqual([
+      "USDTEUR",
+      "USDCEUR",
+      "USDCUSDT"
+    ]);
+    expect(config.bybit.staleAfterMs).toBe(30_000);
+    expect(config.bybit.pingIntervalMs).toBe(20_000);
   });
 
   it("rejects relative runtime paths", () => {
@@ -63,6 +70,14 @@ describe("collector configuration", () => {
         maxTrackedLevelsPerSide: 10_000,
         maxBufferedDepthEvents: 10_000,
         maxFrameBytes: 1024 * 1024
+      },
+      bybit: {
+        products: ["USDTEUR", "USDCEUR", "USDCUSDT"],
+        staleAfterMs: 30_000,
+        maxTrackedLevelsPerSide: 10_000,
+        maxRecentTradeIds: 10_000,
+        maxFrameBytes: 1024 * 1024,
+        pingIntervalMs: 20_000
       }
     });
 
@@ -99,6 +114,14 @@ describe("collector configuration", () => {
         maxTrackedLevelsPerSide: 10_000,
         maxBufferedDepthEvents: 10_000,
         maxFrameBytes: 1024 * 1024
+      },
+      bybit: {
+        products: ["USDTEUR", "USDCEUR", "USDCUSDT"],
+        staleAfterMs: 30_000,
+        maxTrackedLevelsPerSide: 10_000,
+        maxRecentTradeIds: 10_000,
+        maxFrameBytes: 1024 * 1024,
+        pingIntervalMs: 20_000
       }
     };
 
@@ -117,6 +140,24 @@ describe("collector configuration", () => {
       maxTrackedLevelsPerSide: 10_000,
       maxBufferedDepthEvents: 10_000,
       maxFrameBytes: 1024 * 1024
+    };
+
+    expect(collectorConfigSchema.safeParse(example).success).toBe(false);
+  });
+
+  it("rejects an incomplete Bybit product universe", async () => {
+    const contents = await readFile(
+      resolve("config/collector.example.json"),
+      "utf8"
+    );
+    const example = JSON.parse(contents) as Record<string, unknown>;
+    example.bybit = {
+      products: ["USDTEUR"],
+      staleAfterMs: 30_000,
+      maxTrackedLevelsPerSide: 10_000,
+      maxRecentTradeIds: 10_000,
+      maxFrameBytes: 1024 * 1024,
+      pingIntervalMs: 20_000
     };
 
     expect(collectorConfigSchema.safeParse(example).success).toBe(false);

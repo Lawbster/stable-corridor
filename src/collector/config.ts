@@ -8,6 +8,7 @@ import {
 } from "./schema/primitives.js";
 import { COINBASE_PUBLIC_PRODUCTS } from "../venues/coinbase/constants.js";
 import { BINANCE_PUBLIC_PRODUCTS } from "../venues/binance/constants.js";
+import { BYBIT_PUBLIC_PRODUCTS } from "../venues/bybit/constants.js";
 
 const absolutePathSchema = z
   .string()
@@ -41,6 +42,18 @@ const binanceProductsSchema = z
     "Expected each approved Binance product exactly once"
   );
 
+const bybitProductsSchema = z
+  .array(z.enum(BYBIT_PUBLIC_PRODUCTS))
+  .length(BYBIT_PUBLIC_PRODUCTS.length)
+  .refine(
+    (products) =>
+      new Set(products).size === BYBIT_PUBLIC_PRODUCTS.length &&
+      BYBIT_PUBLIC_PRODUCTS.every((product) =>
+        products.includes(product)
+      ),
+    "Expected each approved Bybit product exactly once"
+  );
+
 export const collectorConfigSchema = z.strictObject({
   schemaVersion: schemaVersionSchema,
   processName: z.literal("stable-corridor-collector"),
@@ -70,6 +83,14 @@ export const collectorConfigSchema = z.strictObject({
     maxTrackedLevelsPerSide: positiveSafeIntegerSchema.max(20_000),
     maxBufferedDepthEvents: positiveSafeIntegerSchema.max(100_000),
     maxFrameBytes: positiveSafeIntegerSchema
+  }),
+  bybit: z.strictObject({
+    products: bybitProductsSchema,
+    staleAfterMs: positiveSafeIntegerSchema,
+    maxTrackedLevelsPerSide: positiveSafeIntegerSchema.max(20_000),
+    maxRecentTradeIds: positiveSafeIntegerSchema.max(100_000),
+    maxFrameBytes: positiveSafeIntegerSchema,
+    pingIntervalMs: positiveSafeIntegerSchema
   })
 });
 

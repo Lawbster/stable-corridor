@@ -6,16 +6,16 @@ No trading bot exists. No capital, API keys, authenticated exchange access, or l
 
 ## Current phase
 
-Stage A A1/A2/A3 plus the Binance slice of A4 are implemented. The Coinbase candidate feed and Binance reference feed collect only unauthenticated public metadata, L2 books, trades, and health inputs, normalize them into the deterministic journal contract, and fail closed on continuity or health violations.
+Stage A A1/A2/A3 plus the Binance and Bybit slices of A4 are implemented. The Coinbase candidate feed and Binance/Bybit reference feeds collect only unauthenticated public metadata, L2 books, trades, and health inputs, normalize them into the deterministic journal contract, and fail closed on continuity or health violations.
 
-Bybit, Kraken, and conventional FX adapters, long-running collection, deployment, shadow decisions, and execution remain unimplemented.
+Kraken and conventional FX adapters, long-running collection, deployment, shadow decisions, and execution remain unimplemented.
 
 ## Repository map
 
 ```text
 config/                 Reviewed example configuration
 src/collector/          Public-only collection pipeline
-src/venues/             Coinbase and Binance public adapters
+src/venues/             Coinbase, Binance, and Bybit public adapters
 src/fair-value/         Future fair-value derivation
 src/opportunity/        Future shadow opportunity policy
 src/replay/             Deterministic no-look-ahead replay
@@ -38,7 +38,8 @@ There is intentionally no `src/execution/`.
 3. Review the Stage A collector implementation plan.
 4. Review the Coinbase public API contract.
 5. Review the Binance public API contract.
-6. Record only non-sensitive account findings in `research/access-audit.md`.
+6. Review the Bybit public API contract.
+7. Record only non-sensitive account findings in `research/access-audit.md`.
 
 The economic thesis and full project boundaries are in
 `stable-corridor-new-repo-onboarding-brief-2026-08-01.md`.
@@ -48,6 +49,9 @@ The verified endpoint, message, normalization, and fail-closed rules for A3 are 
 
 The equivalent A4 Binance rules are in
 `research/binance-public-api-contract.md`.
+
+The equivalent A4 Bybit rules are in
+`research/bybit-public-api-contract.md`.
 
 ## Development gates
 

@@ -12,9 +12,8 @@ Coinbase Advanced is the initial execution candidate only if the operator verifi
 ## What is not yet known
 
 - Exact maker treatment for the Coinbase products; the operator's previews imply approximately 0.10 bp when an order may take liquidity.
-- Bybit minimum orders for `USDTEUR`, `USDCEUR`, and `USDCUSDT`.
 - Kraken USDC/Solana deposit support and any withdrawal hold or recipient-information workflow.
-- Coinbase and Bybit SEPA fee and practical timing details.
+- Bybit SEPA fee and practical timing details.
 - A licensed, sufficiently timestamped conventional EUR/USD reference source.
 - Whether dislocations survive conservative fee, queue, latency, inventory, rebalance, peg, and venue-failure modeling.
 
@@ -67,6 +66,8 @@ The operator already has EUR SEPA configured with Binance and considers it an ea
 
 On 2026-08-02, the operator confirmed that Coinbase supports both trading USDC to EUR and withdrawing EUR through an already available SEPA route. Coinbase is therefore the preferred cash off-ramp because its observed USDC-EUR trading cost is materially lower than Binance EURUSDC. Binance SEPA remains a contingency route.
 
+The operator subsequently confirmed that Coinbase's EUR SEPA withdrawal displayed no fee and an estimated `0-3 business day` settlement window. This resolves the nominal fee/timing input but not practical settlement tails, limits, holds, or maintenance risk.
+
 An authenticated Binance outbound USDC preview in the Solana route context displayed a fixed `0.30 USDC` network fee. Transfer routes must therefore be modeled directionally:
 
 - Coinbase to Binance, USDC/Solana: no Coinbase fee observed; approximately 5 minutes in one completed sample;
@@ -92,7 +93,9 @@ EUR SEPA is available with a `2 EUR` minimum, `1 EUR` flat fee, and `0-3 busines
 
 ## Bybit account observation
 
-On 2026-08-02, the operator's Bybit Spot fee display identified the account as Non-VIP with `10 bp` maker and `10 bp` taker pricing. A 25% MNT fee-payment discount was displayed, but the account had no MNT; research therefore uses the undiscounted fees. Post Only was available, although the exact product context was not retained. The operator subsequently confirmed that `USDTEUR`, `USDCEUR`, and `USDCUSDT` are all tradeable. Their minimum orders remain unverified.
+On 2026-08-02, the operator's Bybit Spot fee display identified the account as Non-VIP with `10 bp` maker and `10 bp` taker pricing. A 25% MNT fee-payment discount was displayed, but the account had no MNT; research therefore uses the undiscounted fees. Post Only was available, although the exact product context was not retained. The operator subsequently confirmed that `USDTEUR`, `USDCEUR`, and `USDCUSDT` are all tradeable, with an approximately `1 USDC/USDT`-equivalent minimum on the checked spot order forms.
+
+Bybit's live public instrument metadata is authoritative for pair-specific order rules and reported a `1 EUR` minimum notional for both `USDTEUR` and `USDCEUR`, but a `5 USDT` minimum for `USDCUSDT`. All three were `Trading`, with a `0.0001` tick and `0.01` base precision. The adapter records these live rules instead of applying one account observation across every pair.
 
 The operator reported flat outbound USDC fees of `1 USDC` on Solana and `0.5 USDC` on Base. No transfer was reported. At current trading fees, Bybit remains a public price and liquidity reference rather than a routine execution venue for narrow corridor dislocations.
 
@@ -112,6 +115,12 @@ The market-data-only combined WebSocket produced diff-depth updates for all thre
 
 Binance requires a WebSocket-first synchronization sequence: buffer diff-depth events, fetch a REST snapshot, discard obsolete updates, and require the first retained event to bridge the snapshot update ID. The adapter implements this with absolute quantities, zero removal, bounded buffering, newer-snapshot retry, and fail-closed handling for sequence/trade gaps, crossed or incomplete books, staleness, changed metadata contracts, and oversized input. No authenticated or order endpoint was introduced.
 
+## Bybit public adapter finding
+
+On 2026-08-02, Bybit's unauthenticated spot WebSocket accepted one subscription containing the six approved `orderbook.200` and `publicTrade` topics for `USDTEUR`, `USDCEUR`, and `USDCUSDT`. It acknowledged the subscription and application-level ping, produced 200-level snapshots for all three products, continuous order-book deltas, and observed `USDCUSDT` trades during the bounded probe.
+
+The A4 adapter uses Bybit's update ID `u` for strict per-product order-book continuity and requires cross sequence `seq` to increase. A snapshot replaces the complete tracked book; `u=1` is treated as a service-reset recovery snapshot. Deltas are absolute quantities and zero removes a level. Trade identifiers are deduplicated, but are not assumed to be sequential; multiple trades may legitimately share one `seq`. Online public metadata, a successful subscription acknowledgement, and a valid snapshot are required for research eligibility. The adapter fails closed on gaps, out-of-order messages, duplicate trades, crossed or incomplete books, stale products, changed asset mappings, malformed/oversized input, and rejected subscriptions. No authenticated, order, transfer, or withdrawal endpoint was introduced.
+
 ## Maker versus taker safeguard
 
 A market order is always a taker order. A normal limit order can also be a taker if its price immediately matches the opposite side of the book.
@@ -120,4 +129,4 @@ A Post Only order, called Limit Maker on some Binance surfaces, changes this beh
 
 ## Current conclusion
 
-No edge has been proven. The A3 Coinbase adapter and A4 Binance reference slice are complete locally. The next separately approved technical gate is the Bybit public reference adapter; bounded forward collection and deterministic, no-look-ahead opportunity replay remain later gates. The next operator job is to finish the remaining sanitized account checks in `research/access-audit.md`.
+No edge has been proven. The A3 Coinbase adapter and A4 Binance and Bybit reference slices are complete locally. The next separately approved technical gate is either the Kraken public reference adapter or bounded forward-collection readiness; deployment and deterministic, no-look-ahead opportunity replay remain later gates. The next operator job is to finish the remaining sanitized account checks in `research/access-audit.md`.

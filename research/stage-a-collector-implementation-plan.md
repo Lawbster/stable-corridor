@@ -1,9 +1,9 @@
 # Stage A Public Collector Implementation Plan
 
-**Status:** Approved; A1/A2/A3 and the A4 Binance slice implemented locally
+**Status:** Approved; A1/A2/A3 and the A4 Binance and Bybit slices implemented locally
 **Prepared:** 2026-08-01
 **Approved:** 2026-08-02
-**Implementation authorization:** A1/A2/A3 and A4 Binance completed; additional reference adapters not yet authorized
+**Implementation authorization:** A1/A2/A3 and A4 Binance/Bybit completed; additional reference adapters not yet authorized
 **Live execution:** Nonexistent and out of scope
 
 ## Implementation record
@@ -42,6 +42,17 @@ The approved first A4 reference slice now also includes:
 - 99 passing unit, integration, and replay tests across 19 files.
 
 The Binance slice added no authenticated client, order path, deployment artifact, PM2 process, or execution module.
+
+The approved second A4 reference slice now also includes:
+
+- public, unauthenticated Bybit spot metadata for `USDTEUR`, `USDCEUR`, and `USDCUSDT`;
+- public 200-level order-book snapshots/deltas and public trades over the spot WebSocket;
+- strict update-ID continuity, increasing cross-sequence validation, service-reset snapshots, trade deduplication, staleness checks, and application heartbeat;
+- product mapping, asset-contract, subscription, frame/response, crossed-book, and tracked-state bounds;
+- deterministic recorded fixtures and byte-identical normalized-journal coverage;
+- 123 passing unit, integration, and replay tests across 25 files.
+
+The Bybit slice added no authenticated client, order path, transfer path, deployment artifact, PM2 process, or execution module.
 
 ## 1. Outcome of Stage A
 
@@ -124,7 +135,7 @@ Start with Coinbase public market data for `EURC-USDC` and `USDC-EUR`, subject t
 
 ### A4 — reference adapters
 
-**Binance slice completed locally on 2026-08-02. Further venue slices require separate approval.**
+**Binance and Bybit slices completed locally on 2026-08-02. Further venue slices require separate approval.**
 
 Add one venue at a time, each behind the same normalized contract:
 
@@ -542,8 +553,8 @@ The following decisions are either recorded or remain as later gates:
 
 1. Runtime/package manager: Node.js 24 LTS and npm with an exact lockfile; the VPS was upgraded to Node.js 24.18.1 on 2026-08-02.
 2. Validation/storage libraries: Zod is the sole production dependency; journal persistence uses Node.js filesystem primitives.
-3. Initial adapters: Coinbase A3 and the Binance reference slice of A4 are complete; any additional venue adapter requires explicit authorization.
-4. Market scope: Priority 0 and the three Binance Priority 1 products are approved; the remaining Priority 1 adapter order remains gated one venue at a time.
+3. Initial adapters: Coinbase A3 and the Binance and Bybit reference slices of A4 are complete; any additional venue adapter requires explicit authorization.
+4. Market scope: Priority 0 and the three Binance and three Bybit Priority 1 products are approved; the remaining Priority 1 adapter order remains gated one venue at a time.
 5. Book depth/checkpoint cadence: approve the proposed 20 levels and 60-second checkpoints or request a measured pilot first.
 6. Storage budget: begin with a 10 GiB bounded pilot and 40 GiB free-space reserve; measure the first 72 hours and add a volume only if the retention projection requires it.
 7. Raw frame policy: decide whether bounded raw public frames are retained always, only around errors/dislocations, or not at all.
@@ -566,4 +577,4 @@ Stage A passes only when:
 - deployment paths and named PM2 boundaries cannot touch HYPE;
 - implementation authorization is explicitly given.
 
-The A1/A2 foundation, A3 Coinbase adapter, and A4 Binance reference slice have passed locally. The next code gate requires explicit approval for the public, unauthenticated Bybit reference adapter. Long-running collection and deployment remain separate later gates.
+The A1/A2 foundation, A3 Coinbase adapter, and A4 Binance and Bybit reference slices have passed locally. The next code gate requires explicit approval for either the public, unauthenticated Kraken reference adapter or bounded forward-collection readiness. Long-running collection and deployment remain separate later gates.

@@ -145,3 +145,64 @@ export {
   type BinanceWebSocketFactory,
   type BinanceWebSocketLike
 } from "./venues/binance/transport.js";
+export {
+  BybitPublicAdapter,
+  type BybitAdapterDiagnostics,
+  type BybitProductDiagnostics,
+  type BybitPublicAdapterOptions
+} from "./venues/bybit/adapter.js";
+export {
+  BybitBookIntegrityError,
+  BybitLevel2Book,
+  compareBybitPositiveDecimals,
+  type BybitBookIntegrityCode,
+  type BybitBookLevel,
+  type BybitBookTop
+} from "./venues/bybit/book.js";
+export {
+  BYBIT_CANONICAL_PRODUCTS,
+  BYBIT_ORDERBOOK_DEPTH,
+  BYBIT_PUBLIC_PRODUCTS,
+  BYBIT_PUBLIC_REST_BASE_URL,
+  BYBIT_PUBLIC_SPOT_WEBSOCKET_URL,
+  bybitCanonicalProduct,
+  createBybitPingMessage,
+  createBybitPublicTopics,
+  createBybitSubscriptionMessage,
+  isBybitPublicProduct,
+  type BybitPingMessage,
+  type BybitPublicProduct,
+  type BybitSubscriptionMessage
+} from "./venues/bybit/constants.js";
+export {
+  fetchBybitPublicInstrument,
+  fetchBybitPublicInstruments,
+  normalizeBybitProductMetadata,
+  type BybitInstrumentEvent,
+  type BybitMetadataContext,
+  type BybitPublicFetchOptions
+} from "./venues/bybit/metadata.js";
+export {
+  bybitInstrumentResponseSchema,
+  bybitOrderbookMessageSchema,
+  bybitPongResponseSchema,
+  bybitPublicTradeMessageSchema,
+  bybitPublicTradeSchema,
+  bybitSpotInstrumentSchema,
+  bybitSubscriptionResponseSchema,
+  parseBybitPublicMessage,
+  type BybitInstrumentResponse,
+  type BybitOrderbookMessage,
+  type BybitPongResponse,
+  type BybitPublicMessage,
+  type BybitPublicTrade,
+  type BybitPublicTradeMessage,
+  type BybitSpotInstrument,
+  type BybitSubscriptionResponse
+} from "./venues/bybit/schemas.js";
+export {
+  BybitPublicWebSocketSession,
+  type BybitPublicWebSocketOptions,
+  type BybitWebSocketFactory,
+  type BybitWebSocketLike
+} from "./venues/bybit/transport.js";

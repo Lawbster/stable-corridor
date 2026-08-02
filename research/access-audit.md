@@ -10,9 +10,9 @@ Use `unknown` until personally verified. Fees must be recorded in basis points a
 
 | Venue | Checked at (UTC) | Regional/account access | Relevant markets | Fee treatment | Fiat rails | Status |
 |---|---|---|---|---|---|---|
-| Coinbase Advanced | 2026-08-02; exact time not recorded | available | both products tradeable in buy/sell order forms | approximately 0 bp maker / 0.10 bp taker research input | USDC→EUR and SEPA withdrawal available | verified for current research role |
+| Coinbase Advanced | 2026-08-02; exact time not recorded | available | both products tradeable in buy/sell order forms | approximately 0 bp maker / 0.10 bp taker research input | USDC→EUR; SEPA withdrawal free with 0-3 business day estimate | verified for current research role |
 | Binance | 2026-08-02; exact time not recorded | existing account | `EURUSDC` tradeable; EURC unsupported | no-BNB: 9.5 bp taker, 10 bp maker | SEPA configured with operator's bank | verified for current research role |
-| Bybit | 2026-08-02; exact time not recorded | existing Non-VIP account | `USDTEUR`, `USDCEUR`, and `USDCUSDT` tradeable | 10 bp maker / 10 bp taker; MNT discount unavailable | EUR rails unknown | verified for public-reference role; minima pending |
+| Bybit | 2026-08-02; exact time not recorded | existing Non-VIP account | `USDTEUR`, `USDCEUR`, and `USDCUSDT` tradeable; public minima 1 EUR, 1 EUR, and 5 USDT respectively | 10 bp maker / 10 bp taker; MNT discount unavailable | EUR rails unknown | verified for public-reference role |
 | Kraken | 2026-08-02 | Kraken Pro account available | all five planned EURC/USDC/EUR/USD products tradeable with Post Only | 20 bp maker / 20 bp taker; buy fee charged in USDC | SEPA: 2 EUR minimum, 1 EUR fee, 0-3 business days | verified for reference/backup role |
 
 ## Coinbase Advanced checklist
@@ -60,7 +60,7 @@ The operator verified that Binance supports native USDC deposits on Solana and d
 - [x] Confirm trading access to `USDCUSDT`.
 - [x] Record account-specific maker/taker fees: Non-VIP, 10 bp maker / 10 bp taker.
 - [x] Confirm Post Only is available; exact product context was not retained.
-- [ ] Record the minimum order for each relevant product.
+- [x] Record the approximate UI minimum and exact public rules: operator observed approximately 1 unit; public minimum notionals are 1 EUR for `USDTEUR`/`USDCEUR` and 5 USDT for `USDCUSDT`.
 - [x] Record USDC withdrawal fees: 1 USDC on Solana and 0.5 USDC on Base.
 - [x] Record the displayed MNT fee-payment discount separately; do not apply it without MNT inventory.
 - [ ] Confirm relevant EUR rail availability and non-sensitive fee/timing facts.
@@ -74,13 +74,13 @@ Account tier: Non-VIP
 Maker fee: 10 bp
 Taker fee: 10 bp
 Post Only: available; exact product context not retained
-Minimum order: unknown
+Minimum order: operator observed approximately 1 USDC/USDT-equivalent unit on checked spot order forms; public instrument metadata reports 1 EUR for USDTEUR, 1 EUR for USDCEUR, and 5 USDT for USDCUSDT
 MNT fee payment: 25% discount displayed, but no MNT was available and the discount is not modeled
 USDC withdrawal fee on Solana: 1 USDC flat
 USDC withdrawal fee on Base: 0.5 USDC flat
 Transfer submitted: not reported
 Tradeable products: USDTEUR, USDCEUR, USDCUSDT
-Remaining checks: minimum order for each confirmed product; EUR rail details
+Remaining checks: EUR rail details
 ```
 
 ### Kraken
@@ -249,8 +249,10 @@ Unknowns: current SEPA fee, settlement timing, limits, and maintenance status
 Venue: Coinbase Advanced
 USDC-EUR trading: available
 EUR SEPA withdrawal: available and linked
+Displayed fee: free
+Displayed estimate: 0-3 business days
 Research role: preferred periodic cash off-ramp
-Unknowns: current SEPA fee, settlement timing, limits, and maintenance status
+Unknowns: practical settlement sample, limits, holds, and maintenance status
 Reason for preference: Coinbase USDC-EUR trading cost is materially lower than Binance EURUSDC at the observed account tiers
 ```
 
