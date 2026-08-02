@@ -13,7 +13,7 @@ The repository is authoritative when chat context and repository state differ.
 
 ## Current authority
 
-The project is in Stage A with A1/A2 and the A3 Coinbase public adapter explicitly approved and implemented locally.
+The project is in Stage A with A1/A2, the A3 Coinbase public adapter, and the A4 Binance public reference adapter implemented locally.
 
 Authorized work:
 
@@ -21,6 +21,7 @@ Authorized work:
 - local TypeScript toolchain and normalized schema implementation;
 - deterministic append-only journal, crash-tail recovery, atomic health, and offline test implementation;
 - maintenance of the public, unauthenticated Coinbase adapter for `EURC-USDC` and `USDC-EUR`;
+- maintenance of the public, unauthenticated Binance adapter for `EURUSDC`, `EURIUSDC`, and `USDCUSD`;
 - repository documentation and public-only scaffolding;
 - test, storage, replay, telemetry, and deployment design;
 - sanitized recording of account-level market and fee facts.

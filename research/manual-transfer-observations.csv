@@ -4,3 +4,5 @@ observed_date,observed_time_utc,source_venue,destination_venue,asset,network,sou
 2026-08-02,,kraken,external_or_exchange,USDC,solana,0.7367 USDC,,false,false,"Authenticated withdrawal preview; native USDC; displayed minimum 0.1473 USDC; account-specific deposit support not yet confirmed"
 2026-08-02,,kraken,external_or_exchange,EURC,ethereum,0.3 EURC,,false,false,"Authenticated withdrawal preview; Ethereum was the only EURC network; minimum not recorded"
 2026-08-02,,kraken,bank,EUR,sepa,1 EUR,,false,false,"Authenticated fiat rail observation; 2 EUR minimum and 0-3 business day estimate; no withdrawal submitted"
+2026-08-02,,bybit,external_or_exchange,USDC,solana,1 USDC,,false,false,"Operator-reported authenticated withdrawal preview; flat fee; no transfer reported"
+2026-08-02,,bybit,external_or_exchange,USDC,base,0.5 USDC,,false,false,"Operator-reported authenticated withdrawal preview; flat fee; no transfer reported"

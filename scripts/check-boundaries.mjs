@@ -11,7 +11,13 @@ const forbiddenReferences = [
   "\\opt\\bybit-rev",
   "stable-corridor-live",
   "advanced-trade-ws-user.coinbase.com",
-  "/api/v3/brokerage/orders"
+  "/api/v3/brokerage/orders",
+  "X-MBX-APIKEY",
+  "/api/v3/order",
+  "/api/v3/account",
+  "/api/v3/openOrders",
+  "/api/v3/userDataStream",
+  "/sapi/"
 ];
 const allowedDependencies = new Set(["zod"]);
 

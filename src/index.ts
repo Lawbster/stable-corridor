@@ -91,3 +91,57 @@ export {
   type CoinbaseWebSocketFactory,
   type CoinbaseWebSocketLike
 } from "./venues/coinbase/transport.js";
+export {
+  BinancePublicAdapter,
+  type BinanceAdapterDiagnostics,
+  type BinanceProductDiagnostics,
+  type BinancePublicAdapterOptions
+} from "./venues/binance/adapter.js";
+export {
+  BinanceBookIntegrityError,
+  BinanceLevel2Book,
+  compareBinancePositiveDecimals,
+  type BinanceBookIntegrityCode,
+  type BinanceBookLevel,
+  type BinanceBookTop
+} from "./venues/binance/book.js";
+export {
+  BINANCE_CANONICAL_PRODUCTS,
+  BINANCE_DEPTH_SNAPSHOT_LIMIT,
+  BINANCE_PUBLIC_PRODUCTS,
+  BINANCE_PUBLIC_REST_BASE_URL,
+  BINANCE_PUBLIC_WEBSOCKET_BASE_URL,
+  binanceCanonicalProduct,
+  createBinancePublicStreamNames,
+  createBinancePublicWebSocketUrl,
+  isBinancePublicProduct,
+  type BinancePublicProduct
+} from "./venues/binance/constants.js";
+export {
+  fetchBinancePublicDepthSnapshot,
+  fetchBinancePublicExchangeInfo,
+  normalizeBinanceProductMetadata,
+  type BinanceInstrumentEvent,
+  type BinanceMetadataContext,
+  type BinancePublicFetchOptions
+} from "./venues/binance/metadata.js";
+export {
+  binanceDepthSnapshotSchema,
+  binanceDepthUpdateSchema,
+  binanceExchangeInfoSchema,
+  binanceSymbolInfoSchema,
+  binanceTradeSchema,
+  parseBinanceCombinedStream,
+  type BinanceCombinedStream,
+  type BinanceDepthSnapshot,
+  type BinanceDepthUpdate,
+  type BinanceExchangeInfo,
+  type BinanceSymbolInfo,
+  type BinanceTrade
+} from "./venues/binance/schemas.js";
+export {
+  BinancePublicWebSocketSession,
+  type BinancePublicWebSocketOptions,
+  type BinanceWebSocketFactory,
+  type BinanceWebSocketLike
+} from "./venues/binance/transport.js";

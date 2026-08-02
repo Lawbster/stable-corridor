@@ -7,6 +7,7 @@ import {
   schemaVersionSchema
 } from "./schema/primitives.js";
 import { COINBASE_PUBLIC_PRODUCTS } from "../venues/coinbase/constants.js";
+import { BINANCE_PUBLIC_PRODUCTS } from "../venues/binance/constants.js";
 
 const absolutePathSchema = z
   .string()
@@ -26,6 +27,18 @@ const coinbaseProductsSchema = z
         products.includes(product)
       ),
     "Expected each approved Coinbase product exactly once"
+  );
+
+const binanceProductsSchema = z
+  .array(z.enum(BINANCE_PUBLIC_PRODUCTS))
+  .length(BINANCE_PUBLIC_PRODUCTS.length)
+  .refine(
+    (products) =>
+      new Set(products).size === BINANCE_PUBLIC_PRODUCTS.length &&
+      BINANCE_PUBLIC_PRODUCTS.every((product) =>
+        products.includes(product)
+      ),
+    "Expected each approved Binance product exactly once"
   );
 
 export const collectorConfigSchema = z.strictObject({
@@ -49,6 +62,13 @@ export const collectorConfigSchema = z.strictObject({
     products: coinbaseProductsSchema,
     staleAfterMs: positiveSafeIntegerSchema,
     maxTrackedLevelsPerSide: positiveSafeIntegerSchema.max(20_000),
+    maxFrameBytes: positiveSafeIntegerSchema
+  }),
+  binance: z.strictObject({
+    products: binanceProductsSchema,
+    staleAfterMs: positiveSafeIntegerSchema,
+    maxTrackedLevelsPerSide: positiveSafeIntegerSchema.max(20_000),
+    maxBufferedDepthEvents: positiveSafeIntegerSchema.max(100_000),
     maxFrameBytes: positiveSafeIntegerSchema
   })
 });

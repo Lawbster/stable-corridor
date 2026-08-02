@@ -4,3 +4,5 @@ observed_date,observed_time_utc,venue,product,account_tier,fee_payment_mode,make
 2026-08-02,,binance,EURUSDC,Regular User,native,10,9.5,true,authenticated_ui,"No BNB available for fee payment"
 2026-08-02,,binance,EURUSDC,Regular User,BNB,7.5,7.125,false,authenticated_ui,"25% BNB payment discount displayed but inapplicable without BNB inventory"
 2026-08-02,00:20,kraken,EURC-USDC,entry_stablecoin_fx,native,20,20,true,authenticated_ui,"Post Only available; 100 EURC preview showed 0.230482 USDC estimated fee on 115.241 USDC notional; separate buy preview showed 0.19 USDC and confirmed quote-asset fee payment"
+2026-08-02,,bybit,USDTEUR|USDCEUR|USDCUSDT,Non-VIP,native,10,10,true,authenticated_ui,"All three products tradeable; Post Only available but exact product context not retained; minimum orders unknown"
+2026-08-02,,bybit,USDTEUR|USDCEUR|USDCUSDT,Non-VIP,MNT,7.5,7.5,false,authenticated_ui,"25% MNT fee-payment discount displayed but inapplicable without MNT inventory"

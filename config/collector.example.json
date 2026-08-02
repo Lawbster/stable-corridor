@@ -23,5 +23,16 @@
     "staleAfterMs": 5000,
     "maxTrackedLevelsPerSide": 10000,
     "maxFrameBytes": 8388608
+  },
+  "binance": {
+    "products": [
+      "EURUSDC",
+      "EURIUSDC",
+      "USDCUSD"
+    ],
+    "staleAfterMs": 30000,
+    "maxTrackedLevelsPerSide": 10000,
+    "maxBufferedDepthEvents": 10000,
+    "maxFrameBytes": 1048576
   }
 }

@@ -12,8 +12,7 @@ Coinbase Advanced is the initial execution candidate only if the operator verifi
 ## What is not yet known
 
 - Exact maker treatment for the Coinbase products; the operator's previews imply approximately 0.10 bp when an order may take liquidity.
-- Account-specific Binance pricing and promotion status for the relevant products.
-- Account-specific Bybit pricing for `USDCEUR`.
+- Bybit minimum orders for `USDTEUR`, `USDCEUR`, and `USDCUSDT`.
 - Kraken USDC/Solana deposit support and any withdrawal hold or recipient-information workflow.
 - Coinbase and Bybit SEPA fee and practical timing details.
 - A licensed, sufficiently timestamped conventional EUR/USD reference source.
@@ -91,6 +90,12 @@ EURC withdrawal is available only on Ethereum and costs `0.3 EURC`. Kraken there
 
 EUR SEPA is available with a `2 EUR` minimum, `1 EUR` flat fee, and `0-3 business day` estimate. It is suitable as a periodic fiat rail rather than a time-sensitive strategy leg. Holds, address-whitelisting delay, and recipient-information behavior were not tested.
 
+## Bybit account observation
+
+On 2026-08-02, the operator's Bybit Spot fee display identified the account as Non-VIP with `10 bp` maker and `10 bp` taker pricing. A 25% MNT fee-payment discount was displayed, but the account had no MNT; research therefore uses the undiscounted fees. Post Only was available, although the exact product context was not retained. The operator subsequently confirmed that `USDTEUR`, `USDCEUR`, and `USDCUSDT` are all tradeable. Their minimum orders remain unverified.
+
+The operator reported flat outbound USDC fees of `1 USDC` on Solana and `0.5 USDC` on Base. No transfer was reported. At current trading fees, Bybit remains a public price and liquidity reference rather than a routine execution venue for narrow corridor dislocations.
+
 ## Coinbase public adapter finding
 
 On 2026-08-02, a live unauthenticated probe of Coinbase Exchange WebSocket `level2` returned a subscription error stating that `level2`, `level3`, and `full` now require authentication. No credentials were added or used. Coinbase Advanced Trade's public market-data WebSocket was then verified unauthenticated for both `EURC-USDC` and `USDC-EUR`, including `level2`, `market_trades`, `status`, and `heartbeats`.
@@ -98,6 +103,14 @@ On 2026-08-02, a live unauthenticated probe of Coinbase Exchange WebSocket `leve
 The implemented A3 adapter treats Coinbase `level2` quantities as absolute sizes, removes zero-size levels, preserves connection and venue sequence state, and fails closed on a sequence gap, trade-ID gap, stale or unavailable product, malformed message, oversized frame, update before snapshot, duplicate trade snapshot, or crossed book. Coinbase documents trade `side` as the maker side, so the normalized persisted side is inverted to represent the aggressor.
 
 The public Advanced Trade product REST response reported a `2 USDC` quote minimum for `EURC-USDC`, while the older Exchange product response reported `1 USDC` and the operator observed an approximately `1` unit UI minimum. The live `status` channel also reported a `0.01` quote increment where public REST reported `0.0001`. The adapter therefore treats Advanced Trade public REST as the product-rules authority, uses `status` for availability rather than increments, records the discrepancies, and requires current metadata instead of silently reconciling conflicting fields.
+
+## Binance public adapter finding
+
+On 2026-08-02, Binance's unauthenticated market-data-only REST API returned `EURUSDC`, `EURIUSDC`, and `USDCUSD` as spot-enabled and `TRADING`, each with `LIMIT_MAKER` support and a `5` quote-unit minimum notional. `EURUSDC` and `EURIUSDC` reported a `0.0001` tick and `0.1` quantity step; `USDCUSD` reported a `0.00001` tick and `1` quantity step.
+
+The market-data-only combined WebSocket produced diff-depth updates for all three products during a bounded live probe. Trades arrived for `EURUSDC` and `USDCUSD`; no `EURIUSDC` trade arrived during the short probe. The A4 adapter therefore requires synchronized depth and online metadata for research eligibility while collecting and continuity-checking trades independently.
+
+Binance requires a WebSocket-first synchronization sequence: buffer diff-depth events, fetch a REST snapshot, discard obsolete updates, and require the first retained event to bridge the snapshot update ID. The adapter implements this with absolute quantities, zero removal, bounded buffering, newer-snapshot retry, and fail-closed handling for sequence/trade gaps, crossed or incomplete books, staleness, changed metadata contracts, and oversized input. No authenticated or order endpoint was introduced.
 
 ## Maker versus taker safeguard
 
@@ -107,4 +120,4 @@ A Post Only order, called Limit Maker on some Binance surfaces, changes this beh
 
 ## Current conclusion
 
-No edge has been proven. The A3 Coinbase public adapter is complete locally. The next separately approved technical gate is an A4 Binance public reference adapter; bounded forward collection and deterministic, no-look-ahead opportunity replay remain later gates. The next operator job is the sanitized access audit in `research/access-audit.md`.
+No edge has been proven. The A3 Coinbase adapter and A4 Binance reference slice are complete locally. The next separately approved technical gate is the Bybit public reference adapter; bounded forward collection and deterministic, no-look-ahead opportunity replay remain later gates. The next operator job is to finish the remaining sanitized account checks in `research/access-audit.md`.

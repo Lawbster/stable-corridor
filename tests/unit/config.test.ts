@@ -25,6 +25,12 @@ describe("collector configuration", () => {
       "USDC-EUR"
     ]);
     expect(config.coinbase.staleAfterMs).toBe(5_000);
+    expect(config.binance.products).toEqual([
+      "EURUSDC",
+      "EURIUSDC",
+      "USDCUSD"
+    ]);
+    expect(config.binance.staleAfterMs).toBe(30_000);
   });
 
   it("rejects relative runtime paths", () => {
@@ -50,6 +56,13 @@ describe("collector configuration", () => {
         staleAfterMs: 5_000,
         maxTrackedLevelsPerSide: 10_000,
         maxFrameBytes: 8 * 1024 * 1024
+      },
+      binance: {
+        products: ["EURUSDC", "EURIUSDC", "USDCUSD"],
+        staleAfterMs: 30_000,
+        maxTrackedLevelsPerSide: 10_000,
+        maxBufferedDepthEvents: 10_000,
+        maxFrameBytes: 1024 * 1024
       }
     });
 
@@ -79,7 +92,31 @@ describe("collector configuration", () => {
         staleAfterMs: 5_000,
         maxTrackedLevelsPerSide: 10_000,
         maxFrameBytes: 8 * 1024 * 1024
+      },
+      binance: {
+        products: ["EURUSDC", "EURIUSDC", "USDCUSD"],
+        staleAfterMs: 30_000,
+        maxTrackedLevelsPerSide: 10_000,
+        maxBufferedDepthEvents: 10_000,
+        maxFrameBytes: 1024 * 1024
       }
+    };
+
+    expect(collectorConfigSchema.safeParse(example).success).toBe(false);
+  });
+
+  it("rejects an incomplete Binance product universe", async () => {
+    const contents = await readFile(
+      resolve("config/collector.example.json"),
+      "utf8"
+    );
+    const example = JSON.parse(contents) as Record<string, unknown>;
+    example.binance = {
+      products: ["EURUSDC"],
+      staleAfterMs: 30_000,
+      maxTrackedLevelsPerSide: 10_000,
+      maxBufferedDepthEvents: 10_000,
+      maxFrameBytes: 1024 * 1024
     };
 
     expect(collectorConfigSchema.safeParse(example).success).toBe(false);
