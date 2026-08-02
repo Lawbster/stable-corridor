@@ -439,4 +439,22 @@ describe("Coinbase public adapter", () => {
       )
     ).toEqual(["book_checkpoint", "feed_status"]);
   });
+
+  it("emits a bounded periodic checkpoint without refreshing market time", () => {
+    const adapter = newAdapter();
+    initialize(adapter);
+
+    expect(adapter.checkpoint(receivedBase + 1_000)).toMatchObject([
+      {
+        eventType: "book_checkpoint",
+        sourceTimestampMs: null,
+        receivedTimestampMs: receivedBase + 1_000,
+        venueSequence: "3",
+        payload: {
+          depth: 2,
+          isRecovery: false
+        }
+      }
+    ]);
+  });
 });

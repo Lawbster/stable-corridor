@@ -7,6 +7,7 @@ const roots = ["src", "tests", "scripts", "config"];
 const rootFiles = [
   "package.json",
   "package-lock.json",
+  "ecosystem.config.cjs",
   "tsconfig.json",
   "tsconfig.build.json",
   "vitest.config.ts"

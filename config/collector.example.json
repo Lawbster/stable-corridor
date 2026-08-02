@@ -11,6 +11,11 @@
     "maxDataBytes": 10737418240,
     "minFreeBytes": 42949672960
   },
+  "runtime": {
+    "healthIntervalMs": 30000,
+    "staleCheckIntervalMs": 5000,
+    "reconnectDelayMs": 5000
+  },
   "book": {
     "depth": 20,
     "checkpointIntervalMs": 60000
@@ -46,5 +51,18 @@
     "maxRecentTradeIds": 10000,
     "maxFrameBytes": 1048576,
     "pingIntervalMs": 20000
+  },
+  "kraken": {
+    "products": [
+      "EURC/USDC",
+      "EURC/EUR",
+      "EURC/USD",
+      "USDC/EUR",
+      "USDC/USD"
+    ],
+    "depth": 25,
+    "staleAfterMs": 60000,
+    "maxRecentTradeIds": 10000,
+    "maxFrameBytes": 1048576
   }
 }

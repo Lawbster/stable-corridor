@@ -9,6 +9,10 @@ import {
 import { COINBASE_PUBLIC_PRODUCTS } from "../venues/coinbase/constants.js";
 import { BINANCE_PUBLIC_PRODUCTS } from "../venues/binance/constants.js";
 import { BYBIT_PUBLIC_PRODUCTS } from "../venues/bybit/constants.js";
+import {
+  KRAKEN_BOOK_DEPTH,
+  KRAKEN_PUBLIC_PRODUCTS
+} from "../venues/kraken/constants.js";
 
 const absolutePathSchema = z
   .string()
@@ -16,6 +20,18 @@ const absolutePathSchema = z
   .refine(
     (value) => posix.isAbsolute(value) || win32.isAbsolute(value),
     "Expected an absolute filesystem path"
+  )
+  .refine(
+    (value) => {
+      const normalized = value.replaceAll("\\", "/").toLowerCase();
+      const sharedServicePath = ["", "opt", "bybit-rev"].join("/");
+      const evidenceProjectPath = `/${"reverse"}-${"copy"}/`;
+      return (
+        !normalized.includes(sharedServicePath) &&
+        !normalized.includes(evidenceProjectPath)
+      );
+    },
+    "Runtime paths must remain isolated from the HYPE project"
   );
 
 const coinbaseProductsSchema = z
@@ -54,6 +70,18 @@ const bybitProductsSchema = z
     "Expected each approved Bybit product exactly once"
   );
 
+const krakenProductsSchema = z
+  .array(z.enum(KRAKEN_PUBLIC_PRODUCTS))
+  .length(KRAKEN_PUBLIC_PRODUCTS.length)
+  .refine(
+    (products) =>
+      new Set(products).size === KRAKEN_PUBLIC_PRODUCTS.length &&
+      KRAKEN_PUBLIC_PRODUCTS.every((product) =>
+        products.includes(product)
+      ),
+    "Expected each approved Kraken product exactly once"
+  );
+
 export const collectorConfigSchema = z.strictObject({
   schemaVersion: schemaVersionSchema,
   processName: z.literal("stable-corridor-collector"),
@@ -66,6 +94,11 @@ export const collectorConfigSchema = z.strictObject({
   storage: z.strictObject({
     maxDataBytes: positiveSafeIntegerSchema,
     minFreeBytes: positiveSafeIntegerSchema
+  }),
+  runtime: z.strictObject({
+    healthIntervalMs: positiveSafeIntegerSchema,
+    staleCheckIntervalMs: positiveSafeIntegerSchema,
+    reconnectDelayMs: positiveSafeIntegerSchema
   }),
   book: z.strictObject({
     depth: positiveSafeIntegerSchema.max(1_000),
@@ -91,6 +124,13 @@ export const collectorConfigSchema = z.strictObject({
     maxRecentTradeIds: positiveSafeIntegerSchema.max(100_000),
     maxFrameBytes: positiveSafeIntegerSchema,
     pingIntervalMs: positiveSafeIntegerSchema
+  }),
+  kraken: z.strictObject({
+    products: krakenProductsSchema,
+    depth: z.literal(KRAKEN_BOOK_DEPTH),
+    staleAfterMs: positiveSafeIntegerSchema,
+    maxRecentTradeIds: positiveSafeIntegerSchema.max(100_000),
+    maxFrameBytes: positiveSafeIntegerSchema
   })
 });
 

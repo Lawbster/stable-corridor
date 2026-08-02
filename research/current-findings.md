@@ -121,6 +121,40 @@ On 2026-08-02, Bybit's unauthenticated spot WebSocket accepted one subscription 
 
 The A4 adapter uses Bybit's update ID `u` for strict per-product order-book continuity and requires cross sequence `seq` to increase. A snapshot replaces the complete tracked book; `u=1` is treated as a service-reset recovery snapshot. Deltas are absolute quantities and zero removes a level. Trade identifiers are deduplicated, but are not assumed to be sequential; multiple trades may legitimately share one `seq`. Online public metadata, a successful subscription acknowledgement, and a valid snapshot are required for research eligibility. The adapter fails closed on gaps, out-of-order messages, duplicate trades, crossed or incomplete books, stale products, changed asset mappings, malformed/oversized input, and rejected subscriptions. No authenticated, order, transfer, or withdrawal endpoint was introduced.
 
+## Kraken public adapter finding
+
+On 2026-08-02, Kraken's unauthenticated `AssetPairs` endpoint returned all
+five approved products online: `EURC/USDC`, `EURC/EUR`, `EURC/USD`,
+`USDC/EUR`, and `USDC/USD`. A bounded WebSocket v2 probe received successful
+book and trade subscription acknowledgements and checksum-valid snapshots
+for all five products.
+
+Kraken WebSocket v2 supplies an unsigned CRC32 book checksum instead of a
+conventional book sequence. The adapter preserves lossless price and
+quantity strings, applies each message transactionally, truncates to the
+subscribed 25 levels, verifies the checksum over the top ten levels, and
+records a local per-connection book-message ordinal alongside the checksum.
+It fails closed on checksum mismatch, malformed or oversized input, book or
+trade discontinuity, rejected subscriptions, stale data, changed metadata,
+or an invalid book. No authenticated endpoint was added.
+
+## Public collector readiness finding
+
+The install-ready runner connects the four public adapters, assigns one
+global ingest sequence across venue journals, publishes atomic health,
+creates bounded 60-second book checkpoints, reconnects only the affected
+venue after a recoverable feed failure, and stops on journal, health, or
+storage failure. The PM2 pilot deliberately disables automatic process
+restart so a process-level safety exit remains visible.
+
+A local public-network durability smoke using the production
+`syncEveryAppend=true` setting reached healthy and research-eligible on all
+13 configured feeds. It reported zero journal errors, a 34 ms journal-write
+age, 6 ms event-loop lag, and approximately 107 MiB RSS during the short
+sample. These are functional checks, not capacity estimates. Only the
+operator's 24/48/72-hour VPS measurements can establish daily storage growth
+and shared-host resource impact.
+
 ## Maker versus taker safeguard
 
 A market order is always a taker order. A normal limit order can also be a taker if its price immediately matches the opposite side of the book.
@@ -129,4 +163,7 @@ A Post Only order, called Limit Maker on some Binance surfaces, changes this beh
 
 ## Current conclusion
 
-No edge has been proven. The A3 Coinbase adapter and A4 Binance and Bybit reference slices are complete locally. The next separately approved technical gate is either the Kraken public reference adapter or bounded forward-collection readiness; deployment and deterministic, no-look-ahead opportunity replay remain later gates. The next operator job is to finish the remaining sanitized account checks in `research/access-audit.md`.
+No edge has been proven. The four-venue bounded public collector is
+install-ready but not deployed. The next gate is the operator-run 72-hour
+collection pilot and its storage, coverage, and resource measurements.
+Deterministic no-look-ahead opportunity replay remains a later gate.

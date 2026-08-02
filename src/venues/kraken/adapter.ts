@@ -15,28 +15,36 @@ import {
   utcEpochMillisecondsSchema
 } from "../../collector/schema/primitives.js";
 import {
-  BybitBookIntegrityError,
-  BybitLevel2Book
+  KrakenBookIntegrityError,
+  KrakenLevel2Book
 } from "./book.js";
 import {
-  assertBybitProductSet,
-  assertBybitPublicProduct,
-  bybitCanonicalProduct,
-  BYBIT_ORDERBOOK_DEPTH,
-  type BybitPublicProduct
+  assertKrakenProductSet,
+  assertKrakenPublicProduct,
+  krakenCanonicalProduct,
+  KRAKEN_BOOK_DEPTH,
+  KRAKEN_BOOK_SUBSCRIPTION_REQUEST_ID,
+  KRAKEN_TRADE_SUBSCRIPTION_REQUEST_ID,
+  type KrakenPublicProduct
 } from "./constants.js";
-import { normalizeBybitProductMetadata } from "./metadata.js";
 import {
-  bybitInstrumentResponseSchema,
-  bybitOrderbookMessageSchema,
-  bybitPongResponseSchema,
-  bybitPublicTradeMessageSchema,
-  bybitSubscriptionResponseSchema,
-  parseBybitPublicMessage,
-  type BybitOrderbookMessage,
-  type BybitPublicTradeMessage,
-  type BybitSpotInstrument
+  krakenPairFromResponse,
+  normalizeKrakenProductMetadata
+} from "./metadata.js";
+import {
+  krakenAssetPairsResponseSchema,
+  krakenBookMessageSchema,
+  krakenHeartbeatMessageSchema,
+  krakenStatusMessageSchema,
+  krakenSubscriptionAckSchema,
+  krakenSubscriptionErrorSchema,
+  krakenTradeMessageSchema,
+  parseKrakenPublicMessage,
+  type KrakenAssetPairsResponse,
+  type KrakenBookMessage,
+  type KrakenTradeMessage
 } from "./schemas.js";
+import { parseKrakenTimestamp } from "./time.js";
 
 type FeedState =
   | "connecting"
@@ -52,99 +60,116 @@ type FeedStatusEvent = Extract<
 >;
 
 interface ProductRuntime {
-  readonly product: BybitPublicProduct;
-  readonly book: BybitLevel2Book;
-  readonly recentTradeIds: Set<string>;
-  readonly recentTradeIdQueue: string[];
+  readonly product: KrakenPublicProduct;
+  readonly book: KrakenLevel2Book;
+  readonly recentTradeIds: Set<number>;
+  readonly recentTradeIdQueue: number[];
   bookReady: boolean;
   metadataReady: boolean;
+  bookAck: boolean;
+  tradeAck: boolean;
   tradeSeen: boolean;
   marketStatus: string | undefined;
   gapped: boolean;
   state: FeedState;
-  lastBookUpdateId: number | undefined;
-  lastBookCrossSequence: number | undefined;
-  lastTradeSequence: number | undefined;
+  bookMessageOrdinal: number;
+  lastBookChecksum: number | undefined;
+  lastBookTimestampMs: number | undefined;
+  lastTradeId: number | undefined;
+  lastTradeTimestampMs: number | undefined;
   lastMarketReceivedTimestampMs: number | undefined;
   lastGoodVenueSequence: string | null;
   gapCount: number;
+  checksumMismatchCount: number;
   crossedBookCount: number;
   snapshotCount: number;
 }
 
-export interface BybitPublicAdapterOptions {
-  readonly products: readonly BybitPublicProduct[];
+export interface KrakenPublicAdapterOptions {
+  readonly products: readonly KrakenPublicProduct[];
   readonly collectorRunId: string;
   readonly depth: number;
-  readonly maxTrackedLevelsPerSide: number;
   readonly maxRecentTradeIds: number;
   readonly staleAfterMs: number;
   readonly initialIngestSequence?: number;
 }
 
-export interface BybitProductDiagnostics {
-  readonly product: BybitPublicProduct;
+export interface KrakenProductDiagnostics {
+  readonly product: KrakenPublicProduct;
   readonly state: FeedState;
   readonly bookReady: boolean;
   readonly metadataReady: boolean;
+  readonly bookAck: boolean;
+  readonly tradeAck: boolean;
   readonly tradeSeen: boolean;
   readonly marketStatus: string | null;
-  readonly lastBookUpdateId: string | null;
-  readonly lastBookCrossSequence: string | null;
-  readonly lastTradeSequence: string | null;
+  readonly bookMessageOrdinal: number;
+  readonly lastTradeId: string | null;
   readonly lastGoodVenueSequence: string | null;
   readonly gapCount: number;
+  readonly checksumMismatchCount: number;
   readonly crossedBookCount: number;
   readonly snapshotCount: number;
 }
 
-export interface BybitAdapterDiagnostics {
+export interface KrakenAdapterDiagnostics {
   readonly active: boolean;
   readonly connectionId: string | null;
-  readonly subscriptionReady: boolean;
-  readonly pongCount: number;
+  readonly systemStatus: string | null;
+  readonly heartbeatCount: number;
   readonly lastReceivedTimestampMs: number | null;
   readonly reconnectCount: number;
-  readonly products: readonly BybitProductDiagnostics[];
+  readonly products: readonly KrakenProductDiagnostics[];
 }
 
-function metadataStatus(product: BybitSpotInstrument): string {
-  if (product.status === "Trading") {
-    return "online";
+function pairStatus(status: string): string {
+  switch (status) {
+    case "online":
+      return "online";
+    case "limit_only":
+      return "limit_only";
+    case "post_only":
+      return "post_only";
+    case "cancel_only":
+      return "cancel_only";
+    case "delisted":
+    case "maintenance":
+      return "offline";
+    default:
+      return "unknown";
   }
-  if (
-    product.status === "Closed" ||
-    product.status === "Settled" ||
-    product.status === "Delisted"
-  ) {
-    return "offline";
-  }
-  return "unknown";
 }
 
-export class BybitPublicAdapter {
-  readonly #products: readonly BybitPublicProduct[];
+export class KrakenPublicAdapter {
+  readonly #products: readonly KrakenPublicProduct[];
   readonly #collectorRunId: string;
   readonly #depth: number;
   readonly #maxRecentTradeIds: number;
   readonly #staleAfterMs: number;
-  readonly #runtimes = new Map<BybitPublicProduct, ProductRuntime>();
+  readonly #runtimes = new Map<KrakenPublicProduct, ProductRuntime>();
   #connectionId: string | undefined;
   #active = false;
   #everConnected = false;
   #reconnectCount = 0;
   #nextIngestSequence: number;
   #lastReceivedTimestampMs: number | undefined;
-  #subscriptionReady = false;
-  #pongCount = 0;
+  #systemStatus: string | undefined;
+  #heartbeatCount = 0;
 
-  constructor(options: BybitPublicAdapterOptions) {
-    assertBybitProductSet(options.products);
+  constructor(options: KrakenPublicAdapterOptions) {
+    assertKrakenProductSet(options.products);
     this.#products = [...options.products];
     this.#collectorRunId = collectorRunIdSchema.parse(
       options.collectorRunId
     );
-    this.#depth = positiveSafeIntegerSchema.max(1_000).parse(options.depth);
+    this.#depth = positiveSafeIntegerSchema.max(1_000).parse(
+      options.depth
+    );
+    if (this.#depth !== KRAKEN_BOOK_DEPTH) {
+      throw new Error(
+        `Kraken adapter depth must be ${KRAKEN_BOOK_DEPTH}`
+      );
+    }
     this.#maxRecentTradeIds = positiveSafeIntegerSchema
       .max(100_000)
       .parse(options.maxRecentTradeIds);
@@ -154,15 +179,8 @@ export class BybitPublicAdapter {
     this.#nextIngestSequence = nonNegativeSafeIntegerSchema.parse(
       options.initialIngestSequence ?? 0
     );
-    const maxTrackedLevelsPerSide = positiveSafeIntegerSchema
-      .max(20_000)
-      .parse(options.maxTrackedLevelsPerSide);
-
     for (const product of this.#products) {
-      this.#runtimes.set(
-        product,
-        this.#newRuntime(product, maxTrackedLevelsPerSide)
-      );
+      this.#runtimes.set(product, this.#newRuntime(product));
     }
   }
 
@@ -171,7 +189,7 @@ export class BybitPublicAdapter {
     receivedTimestampMs: number
   ): readonly FeedStatusEvent[] {
     if (this.#active) {
-      throw new Error("Bybit adapter connection is already active");
+      throw new Error("Kraken adapter connection is already active");
     }
     this.#connectionId = connectionIdSchema.parse(connectionId);
     const received = utcEpochMillisecondsSchema.parse(receivedTimestampMs);
@@ -181,8 +199,8 @@ export class BybitPublicAdapter {
     this.#everConnected = true;
     this.#active = true;
     this.#lastReceivedTimestampMs = received;
-    this.#subscriptionReady = false;
-    this.#pongCount = 0;
+    this.#systemStatus = undefined;
+    this.#heartbeatCount = 0;
 
     return this.#products.map((product) => {
       const runtime = this.#runtime(product);
@@ -191,13 +209,17 @@ export class BybitPublicAdapter {
       runtime.recentTradeIdQueue.splice(0);
       runtime.bookReady = false;
       runtime.metadataReady = false;
+      runtime.bookAck = false;
+      runtime.tradeAck = false;
       runtime.tradeSeen = false;
       runtime.marketStatus = undefined;
       runtime.gapped = false;
       runtime.state = "connecting";
-      runtime.lastBookUpdateId = undefined;
-      runtime.lastBookCrossSequence = undefined;
-      runtime.lastTradeSequence = undefined;
+      runtime.bookMessageOrdinal = 0;
+      runtime.lastBookChecksum = undefined;
+      runtime.lastBookTimestampMs = undefined;
+      runtime.lastTradeId = undefined;
+      runtime.lastTradeTimestampMs = undefined;
       runtime.lastMarketReceivedTimestampMs = undefined;
       runtime.lastGoodVenueSequence = null;
       return this.#feedStatus(
@@ -220,7 +242,7 @@ export class BybitPublicAdapter {
       return [];
     }
     this.#active = false;
-    this.#subscriptionReady = false;
+    this.#systemStatus = undefined;
     return this.#products.map((product) => {
       const runtime = this.#runtime(product);
       runtime.book.reset();
@@ -228,11 +250,15 @@ export class BybitPublicAdapter {
       runtime.recentTradeIdQueue.splice(0);
       runtime.bookReady = false;
       runtime.metadataReady = false;
+      runtime.bookAck = false;
+      runtime.tradeAck = false;
       runtime.tradeSeen = false;
       runtime.marketStatus = undefined;
-      runtime.lastBookUpdateId = undefined;
-      runtime.lastBookCrossSequence = undefined;
-      runtime.lastTradeSequence = undefined;
+      runtime.bookMessageOrdinal = 0;
+      runtime.lastBookChecksum = undefined;
+      runtime.lastBookTimestampMs = undefined;
+      runtime.lastTradeId = undefined;
+      runtime.lastTradeTimestampMs = undefined;
       runtime.lastMarketReceivedTimestampMs = undefined;
       runtime.state = "recovering";
       return this.#feedStatus(
@@ -246,14 +272,11 @@ export class BybitPublicAdapter {
     });
   }
 
-  ingestInstrument(
-    expectedProduct: BybitPublicProduct,
+  ingestAssetPairs(
     input: unknown,
     receivedTimestampMs: number
   ): readonly NormalizedEvent[] {
     this.#assertActive();
-    assertBybitPublicProduct(expectedProduct);
-    const runtime = this.#runtime(expectedProduct);
     const received = utcEpochMillisecondsSchema.parse(receivedTimestampMs);
     if (this.#recordReceived(received)) {
       return this.#gapAll(
@@ -262,65 +285,81 @@ export class BybitPublicAdapter {
         received
       );
     }
-    if (runtime.gapped) {
-      return [];
-    }
 
-    let response;
+    let response: KrakenAssetPairsResponse;
     try {
-      response = bybitInstrumentResponseSchema.parse(input);
-      if (response.result.list[0]?.symbol !== expectedProduct) {
-        throw new Error(
-          `instrument response did not match ${expectedProduct}`
-        );
+      response = krakenAssetPairsResponseSchema.parse(input);
+      if (response.error.length > 0) {
+        throw new Error(response.error.join("; "));
+      }
+      for (const product of this.#products) {
+        krakenPairFromResponse(response, product);
       }
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
-      return this.#gapProduct(
-        runtime,
-        `malformed_instrument: ${reason}`.slice(0, 512),
+      return this.#gapAll(
+        `malformed_asset_pairs: ${reason}`.slice(0, 512),
         null,
         received
       );
     }
 
-    const product = response.result.list[0]!;
-    const status = metadataStatus(product);
-    runtime.metadataReady = true;
-    runtime.marketStatus = status;
-    const output: NormalizedEvent[] = [
-      normalizeBybitProductMetadata(product, {
-        receivedTimestampMs: received,
-        ingestSequence: this.#takeIngestSequence(),
-        collectorRunId: this.#collectorRunId,
-        connectionId: this.#connectionId!,
-        serverTimeMs: response.time
-      }),
-      marketStatusEventSchema.parse({
-        ...this.#commonEnvelope(
-          runtime.product,
-          response.time,
-          received,
-          null,
-          "rest"
-        ),
-        eventType: "market_status",
-        payload: {
-          status,
-          reason: status === "online" ? null : product.status,
-          observedAtMs: received
-        }
-      })
-    ];
-    output.push(
-      ...this.#reevaluateReadiness(
-        runtime,
-        response.time,
-        received,
-        runtime.lastGoodVenueSequence,
-        "rest"
-      )
-    );
+    const output: NormalizedEvent[] = [];
+    for (const product of this.#products) {
+      const runtime = this.#runtime(product);
+      if (runtime.gapped) {
+        continue;
+      }
+      try {
+        const pair = krakenPairFromResponse(response, product);
+        const status = pairStatus(pair.status);
+        output.push(
+          normalizeKrakenProductMetadata(product, pair, {
+            receivedTimestampMs: received,
+            ingestSequence: this.#takeIngestSequence(),
+            collectorRunId: this.#collectorRunId,
+            connectionId: this.#connectionId!
+          }),
+          marketStatusEventSchema.parse({
+            ...this.#commonEnvelope(
+              product,
+              null,
+              received,
+              null,
+              "rest"
+            ),
+            eventType: "market_status",
+            payload: {
+              status,
+              reason: status === "online" ? null : pair.status,
+              observedAtMs: received
+            }
+          })
+        );
+        runtime.metadataReady = true;
+        runtime.marketStatus = status;
+        output.push(
+          ...this.#reevaluateReadiness(
+            runtime,
+            null,
+            received,
+            runtime.lastGoodVenueSequence,
+            "rest"
+          )
+        );
+      } catch (error) {
+        const reason =
+          error instanceof Error ? error.message : String(error);
+        output.push(
+          ...this.#gapProduct(
+            runtime,
+            `invalid_asset_pair: ${reason}`.slice(0, 512),
+            null,
+            received
+          )
+        );
+      }
+    }
     return output;
   }
 
@@ -340,7 +379,7 @@ export class BybitPublicAdapter {
 
     let message;
     try {
-      message = parseBybitPublicMessage(input);
+      message = parseKrakenPublicMessage(input);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       return this.#gapAll(
@@ -350,71 +389,49 @@ export class BybitPublicAdapter {
       );
     }
 
-    if ("op" in message && message.op === "subscribe") {
-      const response = bybitSubscriptionResponseSchema.parse(message);
-      if (!response.success || response.ret_msg !== "subscribe") {
+    if ("method" in message && message.method === "subscribe") {
+      if ("success" in message && message.success === false) {
+        const error = krakenSubscriptionErrorSchema.parse(message);
         return this.#gapAll(
-          `subscription_failed:${response.ret_msg}`.slice(0, 512),
+          `subscription_failed:${error.error}`.slice(0, 512),
           null,
           received
         );
       }
-      this.#subscriptionReady = true;
-      return this.#products.flatMap((product) => {
-        const runtime = this.#runtime(product);
-        return this.#reevaluateReadiness(
-          runtime,
+      return this.#handleSubscription(
+        krakenSubscriptionAckSchema.parse(message),
+        received
+      );
+    }
+    if ("channel" in message && message.channel === "status") {
+      const status = krakenStatusMessageSchema.parse(message);
+      this.#systemStatus = status.data[0]!.system;
+      return this.#products.flatMap((product) =>
+        this.#reevaluateReadiness(
+          this.#runtime(product),
           null,
           received,
-          runtime.lastGoodVenueSequence,
+          this.#runtime(product).lastGoodVenueSequence,
           "websocket"
-        );
-      });
+        )
+      );
     }
-
-    if (
-      "ret_msg" in message &&
-      message.ret_msg === "pong"
-    ) {
-      const response = bybitPongResponseSchema.parse(message);
-      if (!response.success) {
-        return this.#gapAll("pong_failed", null, received);
-      }
-      this.#pongCount += 1;
+    if ("channel" in message && message.channel === "heartbeat") {
+      krakenHeartbeatMessageSchema.parse(message);
+      this.#heartbeatCount += 1;
       return [];
     }
-
-    if (
-      "topic" in message &&
-      typeof message.topic === "string" &&
-      message.topic.startsWith("orderbook.")
-    ) {
-      const event = bybitOrderbookMessageSchema.parse(message);
-      if (!this.#runtimes.has(event.data.s)) {
-        return this.#gapAll(
-          `unconfigured_product:${event.data.s}`,
-          `${event.data.u}:${event.data.seq}`,
-          received
-        );
-      }
-      return this.#handleOrderbook(event, received);
+    if ("channel" in message && message.channel === "book") {
+      return this.#handleBook(
+        krakenBookMessageSchema.parse(message),
+        received
+      );
     }
-
-    if (
-      "topic" in message &&
-      typeof message.topic === "string" &&
-      message.topic.startsWith("publicTrade.")
-    ) {
-      const event = bybitPublicTradeMessageSchema.parse(message);
-      const product = event.data[0]!.s;
-      if (!this.#runtimes.has(product)) {
-        return this.#gapAll(
-          `unconfigured_product:${product}`,
-          String(event.data[0]!.seq),
-          received
-        );
-      }
-      return this.#handleTrades(event, received);
+    if ("channel" in message && message.channel === "trade") {
+      return this.#handleTrades(
+        krakenTradeMessageSchema.parse(message),
+        received
+      );
     }
     return [];
   }
@@ -463,13 +480,12 @@ export class BybitPublicAdapter {
         runtime.state !== "healthy" ||
         !runtime.bookReady ||
         runtime.gapped ||
-        runtime.lastBookUpdateId === undefined ||
-        runtime.lastBookCrossSequence === undefined
+        runtime.lastBookChecksum === undefined
       ) {
         return [];
       }
       const venueSequence =
-        `${runtime.lastBookUpdateId}:${runtime.lastBookCrossSequence}`;
+        `${runtime.bookMessageOrdinal}:${runtime.lastBookChecksum}`;
       const top = runtime.book.top(this.#depth);
       return [
         bookCheckpointEventSchema.parse({
@@ -485,7 +501,7 @@ export class BybitPublicAdapter {
             bids: top.bids,
             asks: top.asks,
             depth: this.#depth,
-            checksum: null,
+            checksum: String(runtime.lastBookChecksum),
             isRecovery: false
           }
         })
@@ -493,12 +509,12 @@ export class BybitPublicAdapter {
     });
   }
 
-  diagnostics(): BybitAdapterDiagnostics {
+  diagnostics(): KrakenAdapterDiagnostics {
     return {
       active: this.#active,
       connectionId: this.#connectionId ?? null,
-      subscriptionReady: this.#subscriptionReady,
-      pongCount: this.#pongCount,
+      systemStatus: this.#systemStatus ?? null,
+      heartbeatCount: this.#heartbeatCount,
       lastReceivedTimestampMs: this.#lastReceivedTimestampMs ?? null,
       reconnectCount: this.#reconnectCount,
       products: this.#products.map((product) => {
@@ -508,22 +524,18 @@ export class BybitPublicAdapter {
           state: runtime.state,
           bookReady: runtime.bookReady,
           metadataReady: runtime.metadataReady,
+          bookAck: runtime.bookAck,
+          tradeAck: runtime.tradeAck,
           tradeSeen: runtime.tradeSeen,
           marketStatus: runtime.marketStatus ?? null,
-          lastBookUpdateId:
-            runtime.lastBookUpdateId === undefined
+          bookMessageOrdinal: runtime.bookMessageOrdinal,
+          lastTradeId:
+            runtime.lastTradeId === undefined
               ? null
-              : String(runtime.lastBookUpdateId),
-          lastBookCrossSequence:
-            runtime.lastBookCrossSequence === undefined
-              ? null
-              : String(runtime.lastBookCrossSequence),
-          lastTradeSequence:
-            runtime.lastTradeSequence === undefined
-              ? null
-              : String(runtime.lastTradeSequence),
+              : String(runtime.lastTradeId),
           lastGoodVenueSequence: runtime.lastGoodVenueSequence,
           gapCount: runtime.gapCount,
+          checksumMismatchCount: runtime.checksumMismatchCount,
           crossedBookCount: runtime.crossedBookCount,
           snapshotCount: runtime.snapshotCount
         };
@@ -531,50 +543,109 @@ export class BybitPublicAdapter {
     };
   }
 
-  #handleOrderbook(
-    message: BybitOrderbookMessage,
+  #handleSubscription(
+    message: ReturnType<typeof krakenSubscriptionAckSchema.parse>,
     received: number
-  ): readonly NormalizedEvent[] {
-    const runtime = this.#runtime(message.data.s);
+  ): readonly FeedStatusEvent[] {
+    const runtime = this.#runtime(message.result.symbol);
     if (runtime.gapped) {
       return [];
     }
-    const expectedTopic =
-      `orderbook.${BYBIT_ORDERBOOK_DEPTH}.${runtime.product}`;
-    const venueSequence = `${message.data.u}:${message.data.seq}`;
-    if (message.topic !== expectedTopic) {
-      return this.#gapAll(
-        "topic_event_mismatch",
-        venueSequence,
+    const isBook = message.result.channel === "book";
+    const expectedRequestId = isBook
+      ? KRAKEN_BOOK_SUBSCRIPTION_REQUEST_ID
+      : KRAKEN_TRADE_SUBSCRIPTION_REQUEST_ID;
+    if (message.req_id !== expectedRequestId) {
+      return this.#gapProduct(
+        runtime,
+        "subscription_request_id_mismatch",
+        null,
         received
       );
     }
+    if (
+      (isBook &&
+        (message.result.snapshot !== true ||
+          message.result.depth !== KRAKEN_BOOK_DEPTH)) ||
+      (!isBook && message.result.snapshot !== false)
+    ) {
+      return this.#gapProduct(
+        runtime,
+        "subscription_contract_mismatch",
+        null,
+        received
+      );
+    }
+    if ((isBook && runtime.bookAck) || (!isBook && runtime.tradeAck)) {
+      return this.#gapProduct(
+        runtime,
+        "duplicate_subscription_ack",
+        null,
+        received
+      );
+    }
+    if (isBook) {
+      runtime.bookAck = true;
+    } else {
+      runtime.tradeAck = true;
+    }
+    return this.#reevaluateReadiness(
+      runtime,
+      parseKrakenTimestamp(message.time_out),
+      received,
+      runtime.lastGoodVenueSequence,
+      "websocket"
+    );
+  }
+
+  #handleBook(
+    message: KrakenBookMessage,
+    received: number
+  ): readonly NormalizedEvent[] {
+    const data = message.data[0]!;
+    const runtime = this.#runtime(data.symbol);
+    if (runtime.gapped) {
+      return [];
+    }
+    if (!runtime.bookAck) {
+      return this.#gapProduct(
+        runtime,
+        "book_message_before_subscription_ack",
+        null,
+        received
+      );
+    }
+    const sourceTimestampMs = parseKrakenTimestamp(data.timestamp);
+    if (
+      runtime.lastBookTimestampMs !== undefined &&
+      sourceTimestampMs < runtime.lastBookTimestampMs
+    ) {
+      return this.#gapProduct(
+        runtime,
+        "book_timestamp_moved_backwards",
+        null,
+        received
+      );
+    }
+    const nextOrdinal = runtime.bookMessageOrdinal + 1;
+    const venueSequence = `${nextOrdinal}:${data.checksum}`;
 
     if (message.type === "snapshot") {
       const wasReady = runtime.bookReady;
       try {
         runtime.book.applySnapshot(message);
       } catch (error) {
-        if (
-          error instanceof BybitBookIntegrityError &&
-          error.code === "crossed_book"
-        ) {
-          runtime.crossedBookCount += 1;
-        }
-        const reason =
-          error instanceof BybitBookIntegrityError
-            ? `book_${error.code}`
-            : "invalid_orderbook_snapshot";
-        return this.#gapProduct(
+        return this.#bookFailure(
           runtime,
-          reason,
+          error,
           venueSequence,
           received
         );
       }
       runtime.bookReady = true;
-      runtime.lastBookUpdateId = message.data.u;
-      runtime.lastBookCrossSequence = message.data.seq;
+      runtime.bookMessageOrdinal = nextOrdinal;
+      runtime.lastBookChecksum = data.checksum;
+      runtime.lastBookTimestampMs = sourceTimestampMs;
       runtime.lastMarketReceivedTimestampMs = received;
       runtime.lastGoodVenueSequence = venueSequence;
       runtime.snapshotCount += 1;
@@ -583,7 +654,7 @@ export class BybitPublicAdapter {
         bookCheckpointEventSchema.parse({
           ...this.#commonEnvelope(
             runtime.product,
-            message.cts,
+            sourceTimestampMs,
             received,
             venueSequence,
             "websocket"
@@ -593,18 +664,15 @@ export class BybitPublicAdapter {
             bids: top.bids,
             asks: top.asks,
             depth: this.#depth,
-            checksum: null,
-            isRecovery:
-              this.#reconnectCount > 0 ||
-              wasReady ||
-              message.data.u === 1
+            checksum: String(data.checksum),
+            isRecovery: this.#reconnectCount > 0 || wasReady
           }
         })
       ];
       output.push(
         ...this.#reevaluateReadiness(
           runtime,
-          message.cts,
+          sourceTimestampMs,
           received,
           venueSequence,
           "websocket"
@@ -613,69 +681,35 @@ export class BybitPublicAdapter {
       return output;
     }
 
-    const lastUpdateId = runtime.lastBookUpdateId;
-    const lastCrossSequence = runtime.lastBookCrossSequence;
-    if (
-      !runtime.bookReady ||
-      lastUpdateId === undefined ||
-      lastCrossSequence === undefined
-    ) {
+    if (!runtime.bookReady) {
       return this.#gapProduct(
         runtime,
-        "orderbook_delta_before_snapshot",
+        "book_update_before_snapshot",
         venueSequence,
         received
       );
     }
-    if (message.data.u !== lastUpdateId + 1) {
-      return this.#gapProduct(
-        runtime,
-        message.data.u <= lastUpdateId
-          ? "orderbook_update_out_of_order"
-          : `orderbook_update_gap:${lastUpdateId}->${message.data.u}`,
-        venueSequence,
-        received
-      );
-    }
-    if (message.data.seq <= lastCrossSequence) {
-      return this.#gapProduct(
-        runtime,
-        "orderbook_cross_sequence_out_of_order",
-        venueSequence,
-        received
-      );
-    }
-
+    let changes;
     try {
-      runtime.book.applyDelta(message);
+      changes = runtime.book.applyUpdate(message);
     } catch (error) {
-      if (
-        error instanceof BybitBookIntegrityError &&
-        error.code === "crossed_book"
-      ) {
-        runtime.crossedBookCount += 1;
-      }
-      const reason =
-        error instanceof BybitBookIntegrityError
-          ? `book_${error.code}`
-          : "invalid_orderbook_delta";
-      return this.#gapProduct(
+      return this.#bookFailure(
         runtime,
-        reason,
+        error,
         venueSequence,
         received
       );
     }
-
-    runtime.lastBookUpdateId = message.data.u;
-    runtime.lastBookCrossSequence = message.data.seq;
+    runtime.bookMessageOrdinal = nextOrdinal;
+    runtime.lastBookChecksum = data.checksum;
+    runtime.lastBookTimestampMs = sourceTimestampMs;
     runtime.lastMarketReceivedTimestampMs = received;
     runtime.lastGoodVenueSequence = venueSequence;
     const output: NormalizedEvent[] = [
       bookDeltaEventSchema.parse({
         ...this.#commonEnvelope(
           runtime.product,
-          message.cts,
+          sourceTimestampMs,
           received,
           venueSequence,
           "websocket"
@@ -683,27 +717,16 @@ export class BybitPublicAdapter {
         eventType: "book_delta",
         payload: {
           updateSemantics: "absolute",
-          firstVenueSequence: String(message.data.u),
-          lastVenueSequence: String(message.data.u),
-          changes: [
-            ...message.data.b.map(([price, quantity]) => ({
-              side: "bid" as const,
-              price: normalizeDecimalString(price),
-              quantity: normalizeDecimalString(quantity)
-            })),
-            ...message.data.a.map(([price, quantity]) => ({
-              side: "ask" as const,
-              price: normalizeDecimalString(price),
-              quantity: normalizeDecimalString(quantity)
-            }))
-          ]
+          firstVenueSequence: venueSequence,
+          lastVenueSequence: venueSequence,
+          changes
         }
       })
     ];
     output.push(
       ...this.#reevaluateReadiness(
         runtime,
-        message.cts,
+        sourceTimestampMs,
         received,
         venueSequence,
         "websocket"
@@ -713,70 +736,77 @@ export class BybitPublicAdapter {
   }
 
   #handleTrades(
-    message: BybitPublicTradeMessage,
+    message: KrakenTradeMessage,
     received: number
   ): readonly NormalizedEvent[] {
-    const product = message.data[0]!.s;
+    const product = message.data[0]!.symbol;
     const runtime = this.#runtime(product);
     if (runtime.gapped) {
       return [];
     }
-    if (message.topic !== `publicTrade.${product}`) {
-      return this.#gapAll(
-        "topic_event_mismatch",
-        String(message.data[0]!.seq),
+    if (!runtime.tradeAck) {
+      return this.#gapProduct(
+        runtime,
+        "trade_message_before_subscription_ack",
+        null,
         received
       );
     }
-    if (message.data.some((trade) => trade.s !== product)) {
+    if (message.type !== "update") {
+      return this.#gapProduct(
+        runtime,
+        "unexpected_trade_snapshot",
+        String(message.data[0]!.trade_id),
+        received
+      );
+    }
+    if (message.data.some((trade) => trade.symbol !== product)) {
       return this.#gapProduct(
         runtime,
         "mixed_trade_products",
-        String(message.data[0]!.seq),
+        String(message.data[0]!.trade_id),
         received
       );
     }
 
-    let previousSequence = runtime.lastTradeSequence;
-    let previousTimestamp: number | undefined;
-    const messageIds = new Set<string>();
+    let previousId = runtime.lastTradeId;
+    let previousTimestamp = runtime.lastTradeTimestampMs;
+    const messageIds = new Set<number>();
     for (const trade of message.data) {
-      if (
-        previousSequence !== undefined &&
-        trade.seq < previousSequence
-      ) {
+      const timestamp = parseKrakenTimestamp(trade.timestamp);
+      if (previousId !== undefined && trade.trade_id <= previousId) {
         return this.#gapProduct(
           runtime,
-          "trade_sequence_out_of_order",
-          String(trade.seq),
+          "trade_id_out_of_order",
+          String(trade.trade_id),
           received
         );
       }
       if (
         previousTimestamp !== undefined &&
-        trade.T < previousTimestamp
+        timestamp < previousTimestamp
       ) {
         return this.#gapProduct(
           runtime,
           "trade_timestamp_out_of_order",
-          String(trade.seq),
+          String(trade.trade_id),
           received
         );
       }
       if (
-        messageIds.has(trade.i) ||
-        runtime.recentTradeIds.has(trade.i)
+        messageIds.has(trade.trade_id) ||
+        runtime.recentTradeIds.has(trade.trade_id)
       ) {
         return this.#gapProduct(
           runtime,
           "duplicate_trade_id",
-          `${trade.seq}:${trade.i}`,
+          String(trade.trade_id),
           received
         );
       }
-      messageIds.add(trade.i);
-      previousSequence = trade.seq;
-      previousTimestamp = trade.T;
+      messageIds.add(trade.trade_id);
+      previousId = trade.trade_id;
+      previousTimestamp = timestamp;
     }
 
     const output: NormalizedEvent[] = [];
@@ -785,34 +815,33 @@ export class BybitPublicAdapter {
         tradeEventSchema.parse({
           ...this.#commonEnvelope(
             runtime.product,
-            trade.T,
+            parseKrakenTimestamp(trade.timestamp),
             received,
-            `${trade.seq}:${trade.i}`,
+            String(trade.trade_id),
             "websocket"
           ),
           eventType: "trade",
           payload: {
-            tradeId: trade.i,
-            price: normalizeDecimalString(trade.p),
-            quantity: normalizeDecimalString(trade.v),
-            aggressorSide: trade.S === "Buy" ? "buy" : "sell"
+            tradeId: String(trade.trade_id),
+            price: normalizeDecimalString(trade.price),
+            quantity: normalizeDecimalString(trade.qty),
+            aggressorSide: trade.side
           }
         })
       );
-      this.#rememberTradeId(runtime, trade.i);
+      this.#rememberTradeId(runtime, trade.trade_id);
     }
-    runtime.lastTradeSequence = previousSequence;
+    runtime.lastTradeId = previousId;
+    runtime.lastTradeTimestampMs = previousTimestamp;
     runtime.tradeSeen = true;
     runtime.lastMarketReceivedTimestampMs = received;
-    runtime.lastGoodVenueSequence =
-      runtime.lastBookUpdateId === undefined ||
-      runtime.lastBookCrossSequence === undefined
-        ? String(previousSequence)
-        : `${runtime.lastBookUpdateId}:${runtime.lastBookCrossSequence}`;
+    if (!runtime.bookReady) {
+      runtime.lastGoodVenueSequence = String(previousId);
+    }
     output.push(
       ...this.#reevaluateReadiness(
         runtime,
-        message.ts,
+        previousTimestamp ?? null,
         received,
         runtime.lastGoodVenueSequence,
         "websocket"
@@ -821,7 +850,35 @@ export class BybitPublicAdapter {
     return output;
   }
 
-  #rememberTradeId(runtime: ProductRuntime, tradeId: string): void {
+  #bookFailure(
+    runtime: ProductRuntime,
+    error: unknown,
+    venueSequence: string,
+    received: number
+  ): readonly FeedStatusEvent[] {
+    if (error instanceof KrakenBookIntegrityError) {
+      if (error.code === "checksum_mismatch") {
+        runtime.checksumMismatchCount += 1;
+      }
+      if (error.code === "crossed_book") {
+        runtime.crossedBookCount += 1;
+      }
+      return this.#gapProduct(
+        runtime,
+        `book_${error.code}`,
+        venueSequence,
+        received
+      );
+    }
+    return this.#gapProduct(
+      runtime,
+      "invalid_book_message",
+      venueSequence,
+      received
+    );
+  }
+
+  #rememberTradeId(runtime: ProductRuntime, tradeId: number): void {
     runtime.recentTradeIds.add(tradeId);
     runtime.recentTradeIdQueue.push(tradeId);
     if (runtime.recentTradeIdQueue.length > this.#maxRecentTradeIds) {
@@ -841,6 +898,24 @@ export class BybitPublicAdapter {
   ): readonly FeedStatusEvent[] {
     if (runtime.gapped) {
       return [];
+    }
+    if (this.#systemStatus !== undefined && this.#systemStatus !== "online") {
+      if (runtime.state === "stopped") {
+        return [];
+      }
+      runtime.state = "stopped";
+      return [
+        this.#feedStatus(
+          runtime,
+          "stopped",
+          false,
+          `system_status_${this.#systemStatus}`,
+          venueSequence,
+          received,
+          sourceTimestampMs,
+          source
+        )
+      ];
     }
     if (
       runtime.metadataReady &&
@@ -864,9 +939,11 @@ export class BybitPublicAdapter {
       ];
     }
     if (
-      this.#subscriptionReady &&
-      runtime.bookReady &&
-      runtime.metadataReady
+      this.#systemStatus === "online" &&
+      runtime.metadataReady &&
+      runtime.bookAck &&
+      runtime.tradeAck &&
+      runtime.bookReady
     ) {
       if (runtime.state === "healthy") {
         return [];
@@ -919,8 +996,6 @@ export class BybitPublicAdapter {
     runtime.recentTradeIds.clear();
     runtime.recentTradeIdQueue.splice(0);
     runtime.bookReady = false;
-    runtime.lastBookUpdateId = undefined;
-    runtime.lastBookCrossSequence = undefined;
     runtime.lastGoodVenueSequence = venueSequence;
     return [
       this.#feedStatus(
@@ -964,7 +1039,7 @@ export class BybitPublicAdapter {
   }
 
   #commonEnvelope(
-    product: BybitPublicProduct,
+    product: KrakenPublicProduct,
     sourceTimestampMs: number | null,
     receivedTimestampMs: number,
     venueSequence: string | null,
@@ -972,8 +1047,8 @@ export class BybitPublicAdapter {
   ): Record<string, unknown> {
     return {
       schemaVersion: 1,
-      venue: "bybit",
-      product: bybitCanonicalProduct(product),
+      venue: "kraken",
+      product: krakenCanonicalProduct(product),
       nativeProduct: product,
       sourceTimestampMs,
       receivedTimestampMs,
@@ -990,7 +1065,7 @@ export class BybitPublicAdapter {
       this.#nextIngestSequence
     );
     if (value === Number.MAX_SAFE_INTEGER) {
-      throw new Error("Bybit ingest sequence exhausted");
+      throw new Error("Kraken ingest sequence exhausted");
     }
     this.#nextIngestSequence += 1;
     return value;
@@ -1008,39 +1083,42 @@ export class BybitPublicAdapter {
 
   #assertActive(): void {
     if (!this.#active || this.#connectionId === undefined) {
-      throw new Error("Bybit adapter connection is not active");
+      throw new Error("Kraken adapter connection is not active");
     }
   }
 
-  #runtime(product: BybitPublicProduct): ProductRuntime {
+  #runtime(product: string): ProductRuntime {
+    assertKrakenPublicProduct(product);
     const runtime = this.#runtimes.get(product);
     if (runtime === undefined) {
-      throw new Error(`Unconfigured Bybit product: ${product}`);
+      throw new Error(`Unconfigured Kraken product: ${product}`);
     }
     return runtime;
   }
 
-  #newRuntime(
-    product: BybitPublicProduct,
-    maxTrackedLevelsPerSide: number
-  ): ProductRuntime {
+  #newRuntime(product: KrakenPublicProduct): ProductRuntime {
     return {
       product,
-      book: new BybitLevel2Book(maxTrackedLevelsPerSide),
+      book: new KrakenLevel2Book(this.#depth),
       recentTradeIds: new Set(),
       recentTradeIdQueue: [],
       bookReady: false,
       metadataReady: false,
+      bookAck: false,
+      tradeAck: false,
       tradeSeen: false,
       marketStatus: undefined,
       gapped: false,
       state: "stopped",
-      lastBookUpdateId: undefined,
-      lastBookCrossSequence: undefined,
-      lastTradeSequence: undefined,
+      bookMessageOrdinal: 0,
+      lastBookChecksum: undefined,
+      lastBookTimestampMs: undefined,
+      lastTradeId: undefined,
+      lastTradeTimestampMs: undefined,
       lastMarketReceivedTimestampMs: undefined,
       lastGoodVenueSequence: null,
       gapCount: 0,
+      checksumMismatchCount: 0,
       crossedBookCount: 0,
       snapshotCount: 0
     };

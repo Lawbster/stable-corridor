@@ -13,7 +13,10 @@ The repository is authoritative when chat context and repository state differ.
 
 ## Current authority
 
-The project is in Stage A with A1/A2, the A3 Coinbase public adapter, and the A4 Binance and Bybit public reference adapters implemented locally.
+The project is at the Stage B bounded-public-collector gate. The A1/A2
+foundation, Coinbase candidate adapter, Binance/Bybit/Kraken reference
+adapters, public-only runner, storage gate, health output, and named PM2
+artifact are implemented locally. Nothing is deployed.
 
 Authorized work:
 
@@ -23,11 +26,16 @@ Authorized work:
 - maintenance of the public, unauthenticated Coinbase adapter for `EURC-USDC` and `USDC-EUR`;
 - maintenance of the public, unauthenticated Binance adapter for `EURUSDC`, `EURIUSDC`, and `USDCUSD`;
 - maintenance of the public, unauthenticated Bybit adapter for `USDTEUR`, `USDCEUR`, and `USDCUSDT`;
+- maintenance of the public, unauthenticated Kraken adapter for `EURC/USDC`, `EURC/EUR`, `EURC/USD`, `USDC/EUR`, and `USDC/USD`;
+- bounded public-only collector orchestration, periodic checkpoints, health, storage measurement, and venue reconnects;
+- the named `stable-corridor-collector` PM2 artifact and its targeted pilot runbook;
 - repository documentation and public-only scaffolding;
 - test, storage, replay, telemetry, and deployment design;
 - sanitized recording of account-level market and fee facts.
 
-Additional venue adapters, long-running collection, and deployment require the next reviewed gate.
+The operator may install the reviewed bounded collector pilot. Any additional
+venue, conventional FX source, shadow process, strategy logic, or materially
+different deployment requires a separate reviewed gate.
 
 Not authorized:
 

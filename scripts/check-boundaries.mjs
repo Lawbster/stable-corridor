@@ -22,7 +22,11 @@ const forbiddenReferences = [
   "wss://stream.bybit.com/v5/trade",
   "/v5/order/",
   "/v5/account/",
-  "/v5/asset/withdraw/"
+  "/v5/asset/withdraw/",
+  "wss://ws-auth.kraken.com",
+  "/0/private/",
+  "\"API-Key\"",
+  "\"API-Sign\""
 ];
 const allowedDependencies = new Set(["zod"]);
 

@@ -20,6 +20,7 @@ describe("collector configuration", () => {
     expect(config.book.depth).toBe(20);
     expect(config.storage.maxDataBytes).toBe(10 * 1024 * 1024 * 1024);
     expect(config.storage.minFreeBytes).toBe(40 * 1024 * 1024 * 1024);
+    expect(config.runtime.healthIntervalMs).toBe(30_000);
     expect(config.coinbase.products).toEqual([
       "EURC-USDC",
       "USDC-EUR"
@@ -38,6 +39,15 @@ describe("collector configuration", () => {
     ]);
     expect(config.bybit.staleAfterMs).toBe(30_000);
     expect(config.bybit.pingIntervalMs).toBe(20_000);
+    expect(config.kraken.products).toEqual([
+      "EURC/USDC",
+      "EURC/EUR",
+      "EURC/USD",
+      "USDC/EUR",
+      "USDC/USD"
+    ]);
+    expect(config.kraken.depth).toBe(25);
+    expect(config.kraken.staleAfterMs).toBe(60_000);
   });
 
   it("rejects relative runtime paths", () => {
@@ -53,6 +63,11 @@ describe("collector configuration", () => {
       storage: {
         maxDataBytes: 2048,
         minFreeBytes: 1024
+      },
+      runtime: {
+        healthIntervalMs: 30_000,
+        staleCheckIntervalMs: 5_000,
+        reconnectDelayMs: 5_000
       },
       book: {
         depth: 20,
@@ -78,10 +93,45 @@ describe("collector configuration", () => {
         maxRecentTradeIds: 10_000,
         maxFrameBytes: 1024 * 1024,
         pingIntervalMs: 20_000
+      },
+      kraken: {
+        products: [
+          "EURC/USDC",
+          "EURC/EUR",
+          "EURC/USD",
+          "USDC/EUR",
+          "USDC/USD"
+        ],
+        depth: 25,
+        staleAfterMs: 60_000,
+        maxRecentTradeIds: 10_000,
+        maxFrameBytes: 1024 * 1024
       }
     });
 
     expect(result.success).toBe(false);
+  });
+
+  it("rejects runtime paths that overlap the isolated HYPE project", async () => {
+    const contents = await readFile(
+      resolve("config/collector.example.json"),
+      "utf8"
+    );
+    const example = JSON.parse(contents) as Record<string, unknown>;
+
+    expect(
+      collectorConfigSchema.safeParse({
+        ...example,
+        dataRoot: "/opt/bybit-rev/stable-corridor-data"
+      }).success
+    ).toBe(false);
+    expect(
+      collectorConfigSchema.safeParse({
+        ...example,
+        healthFile:
+          "C:\\projects\\reverse-copy\\state\\collector-health.json"
+      }).success
+    ).toBe(false);
   });
 
   it("rejects an incomplete Coinbase product universe", () => {
@@ -97,6 +147,11 @@ describe("collector configuration", () => {
       storage: {
         maxDataBytes: 2048,
         minFreeBytes: 1024
+      },
+      runtime: {
+        healthIntervalMs: 30_000,
+        staleCheckIntervalMs: 5_000,
+        reconnectDelayMs: 5_000
       },
       book: {
         depth: 20,
@@ -122,6 +177,19 @@ describe("collector configuration", () => {
         maxRecentTradeIds: 10_000,
         maxFrameBytes: 1024 * 1024,
         pingIntervalMs: 20_000
+      },
+      kraken: {
+        products: [
+          "EURC/USDC",
+          "EURC/EUR",
+          "EURC/USD",
+          "USDC/EUR",
+          "USDC/USD"
+        ],
+        depth: 25,
+        staleAfterMs: 60_000,
+        maxRecentTradeIds: 10_000,
+        maxFrameBytes: 1024 * 1024
       }
     };
 
@@ -160,6 +228,22 @@ describe("collector configuration", () => {
       pingIntervalMs: 20_000
     };
 
+    expect(collectorConfigSchema.safeParse(example).success).toBe(false);
+  });
+
+  it("rejects an incomplete Kraken product universe", async () => {
+    const contents = await readFile(
+      resolve("config/collector.example.json"),
+      "utf8"
+    );
+    const example = JSON.parse(contents) as Record<string, unknown>;
+    example.kraken = {
+      products: ["EURC/USDC"],
+      depth: 25,
+      staleAfterMs: 60_000,
+      maxRecentTradeIds: 10_000,
+      maxFrameBytes: 1024 * 1024
+    };
     expect(collectorConfigSchema.safeParse(example).success).toBe(false);
   });
 });

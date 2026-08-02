@@ -1,6 +1,6 @@
 # VPS Boundaries
 
-**Status:** Planned only; nothing is deployed.
+**Status:** Bounded collector install-ready; nothing is deployed.
 
 ## Isolation
 
@@ -78,6 +78,12 @@ Hetzner Cloud Volumes are replicated storage but are not included in server back
 
 No volume should be purchased or attached before the measured pilot demonstrates the need.
 
+The install-ready pilot currently retains normalized journals uncompressed.
+It records checksummed metadata when a part closes and stops at the storage
+gate. The first 72-hour measurement must therefore report uncompressed
+growth; compression remains a separately reviewed optimization after the
+observed event rate and CPU budget are known.
+
 ## Reserved PM2 names
 
 ```text
@@ -86,7 +92,14 @@ stable-corridor-shadow
 stable-corridor-watchdog
 ```
 
-No PM2 process exists yet. `stable-corridor-live` is intentionally not defined.
+No PM2 process exists yet. The reviewed `ecosystem.config.cjs` defines only
+`stable-corridor-collector`, in fork mode with one instance and automatic
+restart disabled. Venue sessions reconnect internally. A fatal journal,
+health, or storage exit remains stopped for inspection. `stable-corridor-live`
+is intentionally not defined.
+
+The exact install, targeted operations, rollback, and measurement commands
+are in `docs/operations/collector-pilot.md`.
 
 All future commands must target one named process. Never use `pm2 restart all`. The watchdog remains read-only and alert-only; it cannot restart PM2 or write a control signal.
 

@@ -544,6 +544,45 @@ export class BinancePublicAdapter {
     return output;
   }
 
+  checkpoint(nowTimestampMs: number): readonly NormalizedEvent[] {
+    const received = utcEpochMillisecondsSchema.parse(nowTimestampMs);
+    if (!this.#active) {
+      return [];
+    }
+    return this.#products.flatMap((product) => {
+      const runtime = this.#runtime(product);
+      if (
+        runtime.state !== "healthy" ||
+        !runtime.bookReady ||
+        runtime.gapped ||
+        runtime.lastDepthUpdateId === undefined
+      ) {
+        return [];
+      }
+      const venueSequence = String(runtime.lastDepthUpdateId);
+      const top = runtime.book.top(this.#depth);
+      return [
+        bookCheckpointEventSchema.parse({
+          ...this.#commonEnvelope(
+            runtime.product,
+            null,
+            received,
+            venueSequence,
+            "websocket"
+          ),
+          eventType: "book_checkpoint",
+          payload: {
+            bids: top.bids,
+            asks: top.asks,
+            depth: this.#depth,
+            checksum: null,
+            isRecovery: false
+          }
+        })
+      ];
+    });
+  }
+
   diagnostics(): BinanceAdapterDiagnostics {
     return {
       active: this.#active,

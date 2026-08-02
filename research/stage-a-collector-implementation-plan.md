@@ -1,9 +1,9 @@
 # Stage A Public Collector Implementation Plan
 
-**Status:** Approved; A1/A2/A3 and the A4 Binance and Bybit slices implemented locally
+**Status:** Approved; four-venue bounded public collector install-ready locally
 **Prepared:** 2026-08-01
 **Approved:** 2026-08-02
-**Implementation authorization:** A1/A2/A3 and A4 Binance/Bybit completed; additional reference adapters not yet authorized
+**Implementation authorization:** A1-A5 public-only collector work completed locally; operator installation is next
 **Live execution:** Nonexistent and out of scope
 
 ## Implementation record
@@ -53,6 +53,27 @@ The approved second A4 reference slice now also includes:
 - 123 passing unit, integration, and replay tests across 25 files.
 
 The Bybit slice added no authenticated client, order path, transfer path, deployment artifact, PM2 process, or execution module.
+
+The approved final A4 reference slice now also includes:
+
+- public Kraken metadata and WebSocket v2 book/trade streams for all five approved products;
+- lossless decimal parsing and transactional unsigned CRC32 validation at subscribed depth 25;
+- local per-connection book ordinals, trade-ID continuity, bounded deduplication, acknowledgements, heartbeat, status, and staleness handling;
+- deterministic recorded fixtures and normalized-journal integration coverage.
+
+The approved A5 readiness slice now also includes:
+
+- one public-only runner with per-venue reconnects and one globally ordered event sink;
+- 60-second bounded checkpoints across all four venues;
+- startup and periodic 10 GiB data/40 GiB reserve storage gates;
+- atomic health with feed eligibility, storage, memory, event-loop lag, and journal metrics;
+- one named PM2 artifact with automatic restart disabled;
+- targeted installation, operation, rollback, and 24/48/72-hour measurement instructions;
+- a public-network durability smoke in which all 13 feeds became healthy with zero journal errors.
+- 158 passing unit, integration, and replay tests across 35 files.
+
+No authenticated client, account read, order path, transfer path, execution
+module, shadow strategy, or deployed process was added.
 
 ## 1. Outcome of Stage A
 
@@ -135,7 +156,7 @@ Start with Coinbase public market data for `EURC-USDC` and `USDC-EUR`, subject t
 
 ### A4 — reference adapters
 
-**Binance and Bybit slices completed locally on 2026-08-02. Further venue slices require separate approval.**
+**Binance, Bybit, and Kraken slices completed locally on 2026-08-02.**
 
 Add one venue at a time, each behind the same normalized contract:
 
@@ -315,7 +336,8 @@ Every derived event records the maximum input `receivedTimestampMs`, the exact s
 | Kraken | `USDC/EUR` | `USDC-EUR` | EUR/USD corridor reference |
 | Kraken | `USDC/USD` | `USDC-USD` | USDC peg reference |
 
-`EURC/USD` may be added after the first Kraken adapter passes. The exact native symbols and product status are discovered through public product metadata during implementation and must not be guessed in code.
+`EURC/USD` was added after public metadata confirmed the exact native symbol
+and online status. Product status remains a live eligibility requirement.
 
 ### External EUR/USD
 
@@ -559,7 +581,9 @@ The following decisions are either recorded or remain as later gates:
 6. Storage budget: begin with a 10 GiB bounded pilot and 40 GiB free-space reserve; measure the first 72 hours and add a volume only if the retention projection requires it.
 7. Raw frame policy: decide whether bounded raw public frames are retained always, only around errors/dislocations, or not at all.
 8. EUR/USD source: select only after license, timing, hours, and cost review.
-9. PM2 supervision: document whether and how collector auto-restart is allowed; watchdog remains unable to restart it.
+9. PM2 supervision: resolved for the pilot; collector automatic restart is
+   disabled, venue reconnects are internal, and the future watchdog remains
+   unable to restart it.
 10. Access audit: decide which verified account facts may be committed in sanitized form.
 
 ## 16. Stage A acceptance gate
@@ -577,4 +601,7 @@ Stage A passes only when:
 - deployment paths and named PM2 boundaries cannot touch HYPE;
 - implementation authorization is explicitly given.
 
-The A1/A2 foundation, A3 Coinbase adapter, and A4 Binance and Bybit reference slices have passed locally. The next code gate requires explicit approval for either the public, unauthenticated Kraken reference adapter or bounded forward-collection readiness. Long-running collection and deployment remain separate later gates.
+The A1-A5 public-only collector has passed locally and is install-ready. The
+next gate is the operator-run bounded Stage B pilot followed by 24/48/72-hour
+storage, coverage, and resource review. Conventional FX, shadow research,
+and all execution work remain separately gated.

@@ -350,6 +350,42 @@ export class CoinbasePublicAdapter {
     return events;
   }
 
+  checkpoint(nowTimestampMs: number): readonly NormalizedEvent[] {
+    const received = utcEpochMillisecondsSchema.parse(nowTimestampMs);
+    if (!this.#active) {
+      return [];
+    }
+    return this.#products.flatMap((product) => {
+      const runtime = this.#runtime(product);
+      if (
+        runtime.state !== "healthy" ||
+        !runtime.bookReady ||
+        runtime.gapped
+      ) {
+        return [];
+      }
+      const top = runtime.book.top(this.#depth);
+      return [
+        bookCheckpointEventSchema.parse({
+          ...this.#commonEnvelope(
+            runtime.product,
+            null,
+            received,
+            runtime.lastGoodVenueSequence
+          ),
+          eventType: "book_checkpoint",
+          payload: {
+            bids: top.bids,
+            asks: top.asks,
+            depth: this.#depth,
+            checksum: null,
+            isRecovery: false
+          }
+        })
+      ];
+    });
+  }
+
   diagnostics(): CoinbaseAdapterDiagnostics {
     return {
       active: this.#active,

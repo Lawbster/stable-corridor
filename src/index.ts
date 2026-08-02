@@ -206,3 +206,76 @@ export {
   type BybitWebSocketFactory,
   type BybitWebSocketLike
 } from "./venues/bybit/transport.js";
+export {
+  KrakenPublicAdapter,
+  type KrakenAdapterDiagnostics,
+  type KrakenProductDiagnostics,
+  type KrakenPublicAdapterOptions
+} from "./venues/kraken/adapter.js";
+export {
+  KrakenBookIntegrityError,
+  KrakenLevel2Book,
+  compareKrakenPositiveDecimals,
+  type KrakenAppliedBookChange,
+  type KrakenBookIntegrityCode,
+  type KrakenBookLevel,
+  type KrakenBookTop
+} from "./venues/kraken/book.js";
+export {
+  calculateKrakenBookChecksum,
+  crc32Utf8,
+  krakenChecksumInput,
+  type KrakenChecksumBook,
+  type KrakenChecksumLevel
+} from "./venues/kraken/checksum.js";
+export {
+  KRAKEN_BOOK_DEPTH,
+  KRAKEN_BOOK_SUBSCRIPTION_REQUEST_ID,
+  KRAKEN_CANONICAL_PRODUCTS,
+  KRAKEN_PUBLIC_PRODUCTS,
+  KRAKEN_PUBLIC_REST_BASE_URL,
+  KRAKEN_PUBLIC_WEBSOCKET_URL,
+  KRAKEN_REST_PRODUCTS,
+  KRAKEN_TRADE_SUBSCRIPTION_REQUEST_ID,
+  createKrakenSubscriptionMessages,
+  isKrakenPublicProduct,
+  krakenCanonicalProduct,
+  type KrakenPublicProduct,
+  type KrakenSubscriptionMessage
+} from "./venues/kraken/constants.js";
+export {
+  fetchKrakenPublicAssetPairs,
+  krakenPairFromResponse,
+  normalizeKrakenProductMetadata,
+  type KrakenInstrumentEvent,
+  type KrakenMetadataContext,
+  type KrakenPublicFetchOptions
+} from "./venues/kraken/metadata.js";
+export {
+  krakenAssetPairsResponseSchema,
+  krakenBookMessageSchema,
+  krakenHeartbeatMessageSchema,
+  krakenStatusMessageSchema,
+  krakenSubscriptionAckSchema,
+  krakenSubscriptionErrorSchema,
+  krakenTradeMessageSchema,
+  krakenTradeSchema,
+  parseKrakenPublicMessage,
+  type KrakenAssetPair,
+  type KrakenAssetPairsResponse,
+  type KrakenBookMessage,
+  type KrakenHeartbeatMessage,
+  type KrakenPublicMessage,
+  type KrakenStatusMessage,
+  type KrakenSubscriptionAck,
+  type KrakenSubscriptionError,
+  type KrakenTrade,
+  type KrakenTradeMessage
+} from "./venues/kraken/schemas.js";
+export { parseKrakenTimestamp } from "./venues/kraken/time.js";
+export {
+  KrakenPublicWebSocketSession,
+  type KrakenPublicWebSocketOptions,
+  type KrakenWebSocketFactory,
+  type KrakenWebSocketLike
+} from "./venues/kraken/transport.js";

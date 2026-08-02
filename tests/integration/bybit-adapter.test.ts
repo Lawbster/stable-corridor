@@ -422,4 +422,22 @@ describe("Bybit public adapter", () => {
       }
     });
   });
+
+  it("emits a bounded periodic checkpoint at the last book sequence", () => {
+    const adapter = newAdapter();
+    initialize(adapter);
+
+    expect(adapter.checkpoint(receivedBase + 1_000)).toMatchObject([
+      {
+        eventType: "book_checkpoint",
+        sourceTimestampMs: null,
+        receivedTimestampMs: receivedBase + 1_000,
+        venueSequence: "8559640:157068563752",
+        payload: {
+          depth: 2,
+          isRecovery: false
+        }
+      }
+    ]);
+  });
 });

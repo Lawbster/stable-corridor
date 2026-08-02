@@ -6,16 +6,22 @@ No trading bot exists. No capital, API keys, authenticated exchange access, or l
 
 ## Current phase
 
-Stage A A1/A2/A3 plus the Binance and Bybit slices of A4 are implemented. The Coinbase candidate feed and Binance/Bybit reference feeds collect only unauthenticated public metadata, L2 books, trades, and health inputs, normalize them into the deterministic journal contract, and fail closed on continuity or health violations.
+The bounded Stage B public collector is install-ready but not deployed.
+Coinbase, Binance, Bybit, and Kraken adapters collect only unauthenticated
+public metadata, L2 books, trades, and health inputs. The runner writes one
+globally ordered deterministic journal, publishes atomic health, creates
+60-second book checkpoints, reconnects failed venue sessions, and stops on
+journal, health, or storage failure.
 
-Kraken and conventional FX adapters, long-running collection, deployment, shadow decisions, and execution remain unimplemented.
+A conventional FX adapter, shadow decisions, and execution remain
+unimplemented. No authenticated client or trading path exists.
 
 ## Repository map
 
 ```text
 config/                 Reviewed example configuration
 src/collector/          Public-only collection pipeline
-src/venues/             Coinbase, Binance, and Bybit public adapters
+src/venues/             Coinbase, Binance, Bybit, and Kraken public adapters
 src/fair-value/         Future fair-value derivation
 src/opportunity/        Future shadow opportunity policy
 src/replay/             Deterministic no-look-ahead replay
@@ -39,7 +45,9 @@ There is intentionally no `src/execution/`.
 4. Review the Coinbase public API contract.
 5. Review the Binance public API contract.
 6. Review the Bybit public API contract.
-7. Record only non-sensitive account findings in `research/access-audit.md`.
+7. Review the Kraken public API contract.
+8. Review the bounded collector pilot runbook.
+9. Record only non-sensitive account findings in `research/access-audit.md`.
 
 The economic thesis and full project boundaries are in
 `stable-corridor-new-repo-onboarding-brief-2026-08-01.md`.
@@ -53,12 +61,18 @@ The equivalent A4 Binance rules are in
 The equivalent A4 Bybit rules are in
 `research/bybit-public-api-contract.md`.
 
+The equivalent A4 Kraken rules are in
+`research/kraken-public-api-contract.md`.
+
+The install, named PM2 operations, rollback, and 72-hour measurement steps
+are in `docs/operations/collector-pilot.md`.
+
 ## Development gates
 
 The project targets the Node.js 24 LTS line.
 
 ```text
-npm install
+npm ci
 npm run check
 ```
 
