@@ -70,7 +70,7 @@ The approved A5 readiness slice now also includes:
 - one named PM2 artifact with automatic restart disabled;
 - targeted installation, operation, rollback, and 24/48/72-hour measurement instructions;
 - a public-network durability smoke in which all 13 feeds became healthy with zero journal errors.
-- 160 passing unit, integration, and replay tests across 36 files.
+- 162 passing unit, integration, and replay tests across 37 files.
 
 No authenticated client, account read, order path, transfer path, execution
 module, shadow strategy, or deployed process was added.

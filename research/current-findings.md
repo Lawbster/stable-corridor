@@ -155,6 +155,19 @@ sample. These are functional checks, not capacity estimates. Only the
 operator's 24/48/72-hour VPS measurements can establish daily storage growth
 and shared-host resource impact.
 
+The first VPS start on commit `f8b9070` opened all four venue sessions and
+persisted approximately 2.7 MiB over about 100 seconds with zero journal
+errors. A quiet `EURIUSDC` period then correctly triggered the configured
+staleness recovery path, but Node.js rejected the application-supplied
+WebSocket close code `1011` as invalid. That exception escalated the intended
+Binance-only reconnect into a fail-closed collector stop. PM2 did not
+automatically restart it, and the journals closed with metadata as designed.
+
+The correction uses private application close codes `4000` and `4001` for
+transport failure and feed recovery, respectively. The Binance pilot stale
+threshold is also raised from 30 to 120 seconds based on the observed quiet
+reference market. No captured data was deleted.
+
 ## Maker versus taker safeguard
 
 A market order is always a taker order. A normal limit order can also be a taker if its price immediately matches the opposite side of the book.

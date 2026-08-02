@@ -32,7 +32,7 @@ describe("collector configuration", () => {
       "EURIUSDC",
       "USDCUSD"
     ]);
-    expect(config.binance.staleAfterMs).toBe(30_000);
+    expect(config.binance.staleAfterMs).toBe(120_000);
     expect(config.bybit.products).toEqual([
       "USDTEUR",
       "USDCEUR",

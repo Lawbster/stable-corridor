@@ -4,6 +4,7 @@ import {
   KRAKEN_PUBLIC_WEBSOCKET_URL,
   type KrakenPublicProduct
 } from "./constants.js";
+import { PUBLIC_FEED_FAILURE_CLOSE_CODE } from "../websocket-close.js";
 
 export interface KrakenWebSocketLike {
   onopen: (() => void) | null;
@@ -155,6 +156,9 @@ export class KrakenPublicWebSocketSession {
     this.#fatalError =
       error instanceof Error ? error : new Error(String(error));
     this.#onFatal?.(this.#fatalError);
-    this.#socket?.close(1011, "collector_failure");
+    this.#socket?.close(
+      PUBLIC_FEED_FAILURE_CLOSE_CODE,
+      "collector_failure"
+    );
   }
 }

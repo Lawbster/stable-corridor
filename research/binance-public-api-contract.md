@@ -98,7 +98,11 @@ The adapter:
 - bounds REST response size before JSON parsing;
 - publishes both normalized instrument and market-status events.
 
-Binance has no selected per-product heartbeat or status WebSocket in A4. Product liveness is measured from its own depth/trade traffic. The reviewed example marks a product stale after 30 seconds without a market message. This deliberately conservative threshold must be evaluated against quiet `EURIUSDC` periods in forward collection.
+Binance has no selected per-product heartbeat or status WebSocket in A4.
+Product liveness is measured from its own depth/trade traffic. The first VPS
+sample observed a legitimate `EURIUSDC` quiet period longer than 30 seconds,
+so the reviewed pilot threshold is 120 seconds. This remains conservative
+and must be reevaluated from the forward dataset.
 
 ## Bounds and recovery
 
@@ -110,7 +114,7 @@ REST bootstrap depth:             1,000 levels per side
 maximum tracked levels:           10,000 per side
 maximum buffered depth events:    10,000 per product
 maximum WebSocket frame:          1 MiB
-stale threshold:                  30 seconds per product
+stale threshold:                  120 seconds per product
 maximum REST response:            2 MiB
 ```
 

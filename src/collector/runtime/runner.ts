@@ -29,6 +29,7 @@ import { KrakenPublicAdapter } from "../../venues/kraken/adapter.js";
 import { krakenCanonicalProduct } from "../../venues/kraken/constants.js";
 import { fetchKrakenPublicAssetPairs } from "../../venues/kraken/metadata.js";
 import { KrakenPublicWebSocketSession } from "../../venues/kraken/transport.js";
+import { PUBLIC_FEED_RECOVERY_CLOSE_CODE } from "../../venues/websocket-close.js";
 import {
   CollectorEventSink,
   type FeedDiagnostic
@@ -401,7 +402,10 @@ export class PublicCollectorRunner {
             const reason =
               error instanceof Error ? error.message : String(error);
             this.#log(`binance snapshot bootstrap failed: ${reason}`);
-            session.stop(1011, "snapshot_bootstrap_failed");
+            session.stop(
+              PUBLIC_FEED_RECOVERY_CLOSE_CODE,
+              "snapshot_bootstrap_failed"
+            );
           });
         },
         onClose: (code, reason) => {
@@ -591,7 +595,10 @@ export class PublicCollectorRunner {
     ) {
       this.#sessions
         .get(venue)
-        ?.session.stop(1011, "feed_recovery_required");
+        ?.session.stop(
+          PUBLIC_FEED_RECOVERY_CLOSE_CODE,
+          "feed_recovery_required"
+        );
     }
   }
 

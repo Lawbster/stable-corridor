@@ -5,6 +5,7 @@ import {
   createBybitSubscriptionMessage,
   type BybitPublicProduct
 } from "./constants.js";
+import { PUBLIC_FEED_FAILURE_CLOSE_CODE } from "../websocket-close.js";
 
 export interface BybitWebSocketLike {
   onopen: (() => void) | null;
@@ -197,6 +198,9 @@ export class BybitPublicWebSocketSession {
       error instanceof Error ? error : new Error(String(error));
     this.#clearPingTimer();
     this.#onFatal?.(this.#fatalError);
-    this.#socket?.close(1011, "collector_failure");
+    this.#socket?.close(
+      PUBLIC_FEED_FAILURE_CLOSE_CODE,
+      "collector_failure"
+    );
   }
 }

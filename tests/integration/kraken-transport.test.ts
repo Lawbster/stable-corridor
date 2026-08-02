@@ -115,7 +115,7 @@ describe("Kraken public WebSocket session", () => {
     oversizedSocket.emitMessage("four");
     await expect(oversized.drain()).rejects.toThrow(/exceeded 3 bytes/u);
     expect(oversizedSocket.closes).toEqual([
-      { code: 1011, reason: "collector_failure" }
+      { code: 4000, reason: "collector_failure" }
     ]);
 
     const binarySocket = new FakeWebSocket();
