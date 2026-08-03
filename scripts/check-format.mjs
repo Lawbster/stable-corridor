@@ -18,6 +18,7 @@ const checkedExtensions = new Set([
   ".json",
   ".jsonl",
   ".mjs",
+  ".sh",
   ".ts",
   ".yaml",
   ".yml"

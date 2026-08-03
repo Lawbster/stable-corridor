@@ -178,3 +178,10 @@ cat /var/lib/stable-corridor/state/collector-health.json
 
 Use the observed bytes per day to project 45- and 60-day retention before
 purchasing or attaching a volume.
+
+## Local runtime mirror
+
+The WSL pull-only rsync workflow for normalized journals, health state,
+incidents, and dedicated collector logs is documented in
+`docs/operations/local-rsync.md`. It does not access the HYPE checkout,
+global PM2 logs, host configuration, or secrets.

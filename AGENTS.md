@@ -16,7 +16,9 @@ The repository is authoritative when chat context and repository state differ.
 The project is at the Stage B bounded-public-collector gate. The A1/A2
 foundation, Coinbase candidate adapter, Binance/Bybit/Kraken reference
 adapters, public-only runner, storage gate, health output, and named PM2
-artifact are implemented locally. Nothing is deployed.
+artifact are implemented. The bounded public collector is deployed under
+the Stage B validation gate; no shadow, watchdog, or execution process is
+deployed.
 
 Authorized work:
 
@@ -33,7 +35,8 @@ Authorized work:
 - test, storage, replay, telemetry, and deployment design;
 - sanitized recording of account-level market and fee facts.
 
-The operator may install the reviewed bounded collector pilot. Any additional
+The operator may maintain the reviewed bounded collector pilot and pull its
+public runtime artifacts into ignored local directories. Any additional
 venue, conventional FX source, shadow process, strategy logic, or materially
 different deployment requires a separate reviewed gate.
 

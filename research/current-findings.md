@@ -209,7 +209,8 @@ A Post Only order, called Limit Maker on some Binance surfaces, changes this beh
 ## Current conclusion
 
 No edge has been proven. The four-venue bounded public collector is
-deployed and healthy in its bounded 72-hour validation. The next gate is
-deploying the five-minute Binance and Bybit silence bounds, then completing
-the 48/72-hour storage, coverage, reconnect, and resource measurements.
+deployed and healthy in its bounded 72-hour validation. Commit `0e6f419`
+loaded the reviewed five-minute Binance and Bybit silence bounds, confirmed
+by its runtime configuration hash. The next gate is completing the 48/72-hour
+storage, coverage, reconnect, and resource measurements.
 Deterministic no-look-ahead opportunity replay remains a later gate.
