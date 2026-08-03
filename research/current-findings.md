@@ -103,7 +103,7 @@ The operator reported flat outbound USDC fees of `1 USDC` on Solana and `0.5 USD
 
 On 2026-08-02, a live unauthenticated probe of Coinbase Exchange WebSocket `level2` returned a subscription error stating that `level2`, `level3`, and `full` now require authentication. No credentials were added or used. Coinbase Advanced Trade's public market-data WebSocket was then verified unauthenticated for both `EURC-USDC` and `USDC-EUR`, including `level2`, `market_trades`, `status`, and `heartbeats`.
 
-The implemented A3 adapter treats Coinbase `level2` quantities as absolute sizes, removes zero-size levels, preserves connection and venue sequence state, and fails closed on a sequence gap, trade-ID gap, stale or unavailable product, malformed message, oversized frame, update before snapshot, duplicate trade snapshot, or crossed book. Coinbase documents trade `side` as the maker side, so the normalized persisted side is inverted to represent the aggressor.
+The implemented A3 adapter treats Coinbase `level2` quantities as absolute sizes, removes zero-size levels, preserves connection and venue sequence state, reconciles overlapping repeated trade snapshots, and fails closed on a sequence gap, unresolved trade-ID gap, stale or unavailable product, malformed message, oversized frame, update before snapshot, or crossed book. Coinbase documents trade `side` as the maker side, so the normalized persisted side is inverted to represent the aggressor.
 
 The public Advanced Trade product REST response reported a `2 USDC` quote minimum for `EURC-USDC`, while the older Exchange product response reported `1 USDC` and the operator observed an approximately `1` unit UI minimum. The live `status` channel also reported a `0.01` quote increment where public REST reported `0.0001`. The adapter therefore treats Advanced Trade public REST as the product-rules authority, uses `status` for availability rather than increments, records the discrepancies, and requires current metadata instead of silently reconciling conflicting fields.
 
@@ -188,10 +188,14 @@ failures. Both pilot silence thresholds are raised to five minutes.
 
 Kraken's four recoveries used abnormal close code `1006`, not the
 collector's recovery code, and are retained as genuine transport
-disconnects. Coinbase's seven collector-requested recoveries require
-separate cause grouping; four `duplicate_trade_snapshot` gaps are visible
-in the first summary, so its five-second connection-level heartbeat
-threshold is unchanged pending that review.
+disconnects. Coinbase's collector-requested recoveries included repeated
+`market_trades` snapshots. Coinbase's public contract permits both
+`snapshot` and `update` event types but does not state that a snapshot is
+one-time-only. The adapter now discards the already-seen overlap, accepts
+only a consecutive unseen tail, journals a healthy reconciliation
+diagnostic, and still fails closed on a real forward trade-ID gap. The
+historical `duplicate_trade_snapshot` events remain valid evidence of the
+previous collector behavior.
 
 Over the same interval, data grew from `12,101,557` to `1,680,697,090`
 bytes, approximately `1.81 GiB/day` uncompressed. At that rate the 10 GiB
@@ -199,6 +203,17 @@ pilot ceiling is roughly 4.7 days from the baseline and the current
 filesystem reserve remains sufficient for the 72-hour gate. Collector RSS
 was approximately 233 MiB; only approximately 11 MiB of the collector
 process itself was swapped despite higher host-wide swap use.
+
+The first full local mirror audit verified all 304 closed parts against
+their metadata and SHA-256: `2,803,222` events and `1,717,518,706` closed
+bytes across approximately 21.3 hours. No closed-part integrity failure,
+duplicate global ingest sequence, open/closed filename collision, or
+unexpected file was found. Seventy-six mutable open parts totaling
+`35,145,541` bytes were intentionally excluded. Streaming those immutable
+parts through gzip level 6 produced `95,924,798` bytes, a measured ratio of
+`5.5851%` and space saving of `94.4149%`; no source journal was changed.
+This establishes compression potential, not authorization for an
+on-server compression or deletion workflow.
 
 ## Maker versus taker safeguard
 

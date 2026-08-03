@@ -73,7 +73,16 @@ The Advanced Trade public endpoint was then probed without a JWT. It delivered:
 - Market-trade `side` is the maker side. It is inverted when normalized to the
   schema's aggressor side.
 - Initial trade snapshots are ordered by numeric trade ID before persistence.
-- Subsequent trade IDs must be consecutive for each product.
+- Advanced Trade documents `market_trades` events as either `snapshot` or
+  `update`, but does not promise that a snapshot occurs only once. A repeated
+  snapshot is therefore reconciled against the last accepted per-product
+  trade ID instead of being treated as a gap solely because of its type.
+- Trades at or below the last accepted ID in a repeated snapshot are ignored.
+  A nonempty unseen tail is persisted only when it begins at the next ID and
+  remains consecutive. An empty overlap and an accepted tail each produce a
+  durable healthy diagnostic status; a forward gap or duplicate in the
+  unseen tail still fails closed.
+- Subsequent update trade IDs must be consecutive for each product.
 - Exchange event time is preserved as `sourceTimestampMs`; receipt is captured
   immediately as `receivedTimestampMs`.
 - A product becomes research-eligible only after book, trade, status, and

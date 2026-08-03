@@ -110,3 +110,34 @@ df -h /mnt/c
 
 This mirror is a working research copy, not an independently validated
 backup policy.
+
+## Audit the local mirror
+
+After a pull, verify every immutable part and measure its compression
+potential:
+
+```sh
+npm run audit:data
+```
+
+The command:
+
+- reads only closed `.jsonl` parts for analytical metrics;
+- verifies the route, byte count, event count, timestamps, and SHA-256
+  against each matching `.meta.json`;
+- reports mutable `.jsonl.open` parts separately, including partial tails;
+- reports coverage, event rates, source-to-receive latency, feed-state
+  reasons, ingest-sequence observations, and run-manifest coverage;
+- streams each closed part through gzip level 6 to measure a real
+  compression ratio without creating or changing journal files.
+
+The ignored report is written to `state/dataset-audit.json`. For a quicker
+integrity pass without compression measurement:
+
+```sh
+npm run audit:data -- --compression none
+```
+
+An integrity failure returns a non-zero exit code. A passing audit means
+the closed journal subset is ready for research tooling; it does not by
+itself authorize live calibration or execution.

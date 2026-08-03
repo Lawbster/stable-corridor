@@ -91,6 +91,13 @@ collector accounted for approximately `11 MiB` of swap. Root free space
 remained above the configured 40 GiB reserve. These are interim
 measurements; the 72-hour result remains the capacity gate.
 
+The corresponding local closed-journal audit verified 304 of 304 parts,
+covering `2,803,222` events and `1,717,518,706` bytes. Gzip level 6 reduced
+those immutable bytes to `95,924,798`, a measured `5.5851%` ratio. This is
+an offline sizing result only: the deployed collector still writes and
+retains uncompressed journals, and no automatic compression or source
+deletion is authorized during the pilot.
+
 ## Reserved PM2 names
 
 ```text

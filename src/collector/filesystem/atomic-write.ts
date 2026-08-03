@@ -1,4 +1,5 @@
 import {
+  link,
   mkdir,
   open,
   rename,
@@ -45,6 +46,36 @@ export async function writeFileAtomic(
     await handle.close();
     handle = undefined;
     await rename(temporaryPath, targetPath);
+    await syncDirectoryBestEffort(directory);
+  } catch (error) {
+    await handle?.close().catch(() => undefined);
+    await unlink(temporaryPath).catch(() => undefined);
+    throw error;
+  }
+}
+
+export async function writeFileAtomicExclusive(
+  targetPath: string,
+  contents: string | Uint8Array,
+  mode = 0o600
+): Promise<void> {
+  const directory = dirname(targetPath);
+  const temporaryPath = join(
+    directory,
+    `.${basename(targetPath)}.${process.pid}.${randomUUID()}.tmp`
+  );
+  let handle: FileHandle | undefined;
+
+  await mkdir(directory, { recursive: true });
+
+  try {
+    handle = await open(temporaryPath, "wx", mode);
+    await handle.writeFile(contents);
+    await handle.sync();
+    await handle.close();
+    handle = undefined;
+    await link(temporaryPath, targetPath);
+    await unlink(temporaryPath);
     await syncDirectoryBestEffort(directory);
   } catch (error) {
     await handle?.close().catch(() => undefined);

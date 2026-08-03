@@ -39,6 +39,10 @@ import {
   storageLimitReason,
   type StorageMeasurement
 } from "./storage.js";
+import {
+  writeCollectorRunEndManifest,
+  writeCollectorRunStartManifest
+} from "./run-manifest.js";
 
 type VenueName = "coinbase" | "binance" | "bybit" | "kraken";
 
@@ -191,6 +195,14 @@ export class PublicCollectorRunner {
         `dataBytes=${this.#lastStorage.dataRootBytes} ` +
         `freeBytes=${this.#lastStorage.diskFreeBytes}`
     );
+    await writeCollectorRunStartManifest({
+      dataRoot: this.#config.dataRoot,
+      collectorRunId: this.#collectorRunId,
+      commitSha: this.#commitSha,
+      configHash: this.#configHash,
+      config: this.#config,
+      startedAtMs: this.#startedAtMs
+    });
 
     this.#healthTimer = setInterval(() => {
       const now = this.#now();
@@ -267,6 +279,20 @@ export class PublicCollectorRunner {
     await this.#publishHealth("stopping").catch(() => undefined);
     await this.#sink.close().catch(() => {
       this.#exitCode = 1;
+    });
+    await writeCollectorRunEndManifest({
+      dataRoot: this.#config.dataRoot,
+      collectorRunId: this.#collectorRunId,
+      startedAtMs: this.#startedAtMs,
+      stoppedAtMs: this.#now(),
+      stopReason: reason,
+      exitCode: this.#exitCode,
+      journalErrorCount: this.#sink.journalErrorCount
+    }).catch((error: unknown) => {
+      const description =
+        error instanceof Error ? error.message : String(error);
+      this.#exitCode = 1;
+      this.#log(`run end manifest publication failed: ${description}`);
     });
     this.#log(`stable-corridor collector stopped reason=${reason}`);
     this.#resolveWait?.();

@@ -87,6 +87,13 @@ Review `config/collector.json` before starting. The pilot defaults are:
 No automatic retention deletion exists. Reaching either storage limit
 causes a clean collector stop.
 
+Each collector start creates an immutable
+`data/runs/<collectorRunId>/start.json` record containing the deployed
+commit, canonical configuration hash, reviewed public configuration, Node
+runtime, and start time. A graceful stop adds an immutable `end.json` with
+the stop reason, exit code, and journal error count. A missing end record
+therefore remains visible as an incomplete or ungraceful run.
+
 ## First start
 
 ```sh
