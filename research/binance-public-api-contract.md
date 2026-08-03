@@ -101,8 +101,10 @@ The adapter:
 Binance has no selected per-product heartbeat or status WebSocket in A4.
 Product liveness is measured from its own depth/trade traffic. The first VPS
 sample observed a legitimate `EURIUSDC` quiet period longer than 30 seconds,
-so the reviewed pilot threshold is 120 seconds. This remains conservative
-and must be reevaluated from the forward dataset.
+and the first 20-hour run produced 24 venue-session recoveries when that
+product crossed the 120-second threshold. The reviewed pilot threshold is
+therefore five minutes. This remains a bounded refresh and must be
+reevaluated from the forward dataset.
 
 ## Bounds and recovery
 
@@ -114,7 +116,7 @@ REST bootstrap depth:             1,000 levels per side
 maximum tracked levels:           10,000 per side
 maximum buffered depth events:    10,000 per product
 maximum WebSocket frame:          1 MiB
-stale threshold:                  120 seconds per product
+stale threshold:                  300 seconds per product
 maximum REST response:            2 MiB
 ```
 

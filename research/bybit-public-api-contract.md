@@ -44,6 +44,15 @@ The transport sends the documented application heartbeat `{"op":"ping"}` every 2
 
 Reconnect scheduling is intentionally outside the transport. A supervisor must create a fresh connection/session and the adapter requires fresh metadata, acknowledgement, and snapshots before eligibility returns.
 
+Bybit documents that depth-200 messages are change-driven, so a quiet valid
+book need not emit market traffic on a fixed cadence. The first 20-hour VPS
+run showed that the original 30-second per-product silence threshold caused
+119 otherwise successful venue-session recoveries, all led by quiet
+`USDCEUR`. The pilot threshold is therefore five minutes. Application pongs
+remain independently counted every 20 seconds; the five-minute market bound
+remains a conservative periodic refresh for a potentially silent individual
+subscription.
+
 ## Order-book semantics
 
 Each `orderbook.200` message carries:

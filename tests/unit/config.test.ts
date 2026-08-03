@@ -32,13 +32,13 @@ describe("collector configuration", () => {
       "EURIUSDC",
       "USDCUSD"
     ]);
-    expect(config.binance.staleAfterMs).toBe(120_000);
+    expect(config.binance.staleAfterMs).toBe(300_000);
     expect(config.bybit.products).toEqual([
       "USDTEUR",
       "USDCEUR",
       "USDCUSDT"
     ]);
-    expect(config.bybit.staleAfterMs).toBe(30_000);
+    expect(config.bybit.staleAfterMs).toBe(300_000);
     expect(config.bybit.pingIntervalMs).toBe(20_000);
     expect(config.kraken.products).toEqual([
       "EURC/USDC",

@@ -177,6 +177,29 @@ completed without affecting the collector process. To avoid needless
 session churn while retaining bounded refresh, the Kraken pilot threshold
 is raised to five minutes.
 
+After approximately 20 hours on commit `8e74d41`, all 13 feeds remained
+healthy with zero journal errors and zero event-loop lag. Journal evidence
+showed that Bybit's 119 reconnects were all collector-requested
+`4001` recoveries led by quiet `USDCEUR`, while Binance's 24 were the same
+pattern led by quiet `EURIUSDC`. Because one quiet product refreshes the
+whole venue session, each trigger produced recovery transitions for every
+configured product on that venue. These are not independent transport
+failures. Both pilot silence thresholds are raised to five minutes.
+
+Kraken's four recoveries used abnormal close code `1006`, not the
+collector's recovery code, and are retained as genuine transport
+disconnects. Coinbase's seven collector-requested recoveries require
+separate cause grouping; four `duplicate_trade_snapshot` gaps are visible
+in the first summary, so its five-second connection-level heartbeat
+threshold is unchanged pending that review.
+
+Over the same interval, data grew from `12,101,557` to `1,680,697,090`
+bytes, approximately `1.81 GiB/day` uncompressed. At that rate the 10 GiB
+pilot ceiling is roughly 4.7 days from the baseline and the current
+filesystem reserve remains sufficient for the 72-hour gate. Collector RSS
+was approximately 233 MiB; only approximately 11 MiB of the collector
+process itself was swapped despite higher host-wide swap use.
+
 ## Maker versus taker safeguard
 
 A market order is always a taker order. A normal limit order can also be a taker if its price immediately matches the opposite side of the book.
@@ -186,6 +209,7 @@ A Post Only order, called Limit Maker on some Binance surfaces, changes this beh
 ## Current conclusion
 
 No edge has been proven. The four-venue bounded public collector is
-install-ready but not deployed. The next gate is the operator-run 72-hour
-collection pilot and its storage, coverage, and resource measurements.
+deployed and healthy in its bounded 72-hour validation. The next gate is
+deploying the five-minute Binance and Bybit silence bounds, then completing
+the 48/72-hour storage, coverage, reconnect, and resource measurements.
 Deterministic no-look-ahead opportunity replay remains a later gate.

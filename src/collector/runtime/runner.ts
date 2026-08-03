@@ -585,14 +585,18 @@ export class PublicCollectorRunner {
       void this.stop("journal_failure", 1);
       throw error;
     }
-    if (
-      events.some(
-        (event) =>
-          event.eventType === "feed_status" &&
-          (event.payload.state === "gapped" ||
-            event.payload.state === "stale")
-      )
-    ) {
+    const recovery = events.find(
+      (event) =>
+        event.eventType === "feed_status" &&
+        (event.payload.state === "gapped" ||
+          event.payload.state === "stale")
+    );
+    if (recovery?.eventType === "feed_status") {
+      this.#log(
+        `${venue} public feed recovery required ` +
+          `product=${recovery.product} state=${recovery.payload.state} ` +
+          `reason=${recovery.payload.reason ?? "none"}`
+      );
       this.#sessions
         .get(venue)
         ?.session.stop(
@@ -617,6 +621,7 @@ export class PublicCollectorRunner {
       reason.length > 0
         ? `connection_closed:${code ?? 0}:${reason}`
         : `connection_closed:${code ?? 0}`;
+    this.#log(`${venue} public ${description}`);
     await this.#append(
       active.endConnection(this.#now(), description.slice(0, 512))
     ).catch(() => undefined);

@@ -36,7 +36,7 @@
       "EURIUSDC",
       "USDCUSD"
     ],
-    "staleAfterMs": 120000,
+    "staleAfterMs": 300000,
     "maxTrackedLevelsPerSide": 10000,
     "maxBufferedDepthEvents": 10000,
     "maxFrameBytes": 1048576
@@ -47,7 +47,7 @@
       "USDCEUR",
       "USDCUSDT"
     ],
-    "staleAfterMs": 30000,
+    "staleAfterMs": 300000,
     "maxTrackedLevelsPerSide": 10000,
     "maxRecentTradeIds": 10000,
     "maxFrameBytes": 1048576,

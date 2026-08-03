@@ -1,6 +1,6 @@
 # Bounded Collector Pilot
 
-**Status:** install-ready; not deployed
+**Status:** deployed; bounded validation in progress
 **Authorized process:** `stable-corridor-collector` only
 
 This runbook installs the public, unauthenticated collector without
@@ -50,6 +50,11 @@ npm run build
 ```
 
 Do not continue if any gate fails.
+
+`config/collector.json` is host-local and is not replaced by Git. For an
+update that changes reviewed runtime defaults, apply the corresponding
+approved values to that file explicitly before restarting. Never overwrite
+the host configuration wholesale without reviewing the diff.
 
 ## Runtime directories and configuration
 

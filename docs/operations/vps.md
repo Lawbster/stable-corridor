@@ -1,6 +1,6 @@
 # VPS Boundaries
 
-**Status:** Bounded collector install-ready; nothing is deployed.
+**Status:** Bounded public collector deployed; validation in progress.
 
 ## Isolation
 
@@ -8,7 +8,7 @@ Stable Corridor must remain independent of the live HYPE deployment.
 
 ```text
 /opt/bybit-rev          existing HYPE code; out of scope
-/opt/stable-corridor    future Stable Corridor code
+/opt/stable-corridor    Stable Corridor collector checkout
 ```
 
 No Stable Corridor process, script, deployment, environment file, or state path may import from, write to, rebuild, clean, restart, or otherwise depend on `/opt/bybit-rev`.
@@ -52,7 +52,7 @@ PM2:                 6.0.14
 
 No CPU or RAM upgrade is currently justified. Stage B begins with one bounded collector instance and measures RSS, CPU, event-loop lag, compression load, and impact on available memory.
 
-On 2026-08-02, the operator upgraded the VPS system runtime from Node.js 20.20.2 to Node.js 24.18.1 and confirmed the existing workloads continued running normally. This satisfies Stable Corridor's Node.js 24 LTS target. A later PM2 definition must still name its interpreter explicitly so the deployed runtime is auditable.
+On 2026-08-02, the operator upgraded the VPS system runtime from Node.js 20.20.2 to Node.js 24.18.1 and confirmed the existing workloads continued running normally. This satisfies Stable Corridor's Node.js 24 LTS target. The deployed PM2 definition pins `/usr/bin/node`, and PM2 reported Node.js 24.18.1 for the process.
 
 ### Storage measurement before expansion
 
@@ -78,11 +78,18 @@ Hetzner Cloud Volumes are replicated storage but are not included in server back
 
 No volume should be purchased or attached before the measured pilot demonstrates the need.
 
-The install-ready pilot currently retains normalized journals uncompressed.
+The deployed pilot currently retains normalized journals uncompressed.
 It records checksummed metadata when a part closes and stops at the storage
 gate. The first 72-hour measurement must therefore report uncompressed
 growth; compression remains a separately reviewed optimization after the
 observed event rate and CPU budget are known.
+
+The first approximately 20-hour sample measured `1.81 GiB/day` of
+uncompressed Stable Corridor data. Collector RSS was approximately
+`233 MiB`, event-loop lag was zero in the sampled health record, and the
+collector accounted for approximately `11 MiB` of swap. Root free space
+remained above the configured 40 GiB reserve. These are interim
+measurements; the 72-hour result remains the capacity gate.
 
 ## Reserved PM2 names
 
@@ -92,11 +99,11 @@ stable-corridor-shadow
 stable-corridor-watchdog
 ```
 
-No PM2 process exists yet. The reviewed `ecosystem.config.cjs` defines only
-`stable-corridor-collector`, in fork mode with one instance and automatic
-restart disabled. Venue sessions reconnect internally. A fatal journal,
-health, or storage exit remains stopped for inspection. `stable-corridor-live`
-is intentionally not defined.
+The deployed `stable-corridor-collector` is the only Stable Corridor PM2
+process. The reviewed `ecosystem.config.cjs` defines it in fork mode with
+one instance and automatic restart disabled. Venue sessions reconnect
+internally. A fatal journal, health, or storage exit remains stopped for
+inspection. `stable-corridor-live` is intentionally not defined.
 
 The exact install, targeted operations, rollback, and measurement commands
 are in `docs/operations/collector-pilot.md`.
@@ -115,9 +122,9 @@ If a much later approved phase needs secrets, they belong only in:
 
 The file must be excluded from Git, separated from the HYPE environment, and mode `0600`. Trading keys must have withdrawals disabled. These notes are a future boundary, not authorization to create keys.
 
-## Required pre-deployment inventory
+## Deployment inventory
 
-Before Stage B deployment, record:
+The Stage B deployment records and continues to verify:
 
 - filesystem capacity, mount layout, and minimum free-space reserve;
 - CPU, memory, Node.js, PM2, and service-manager versions;
