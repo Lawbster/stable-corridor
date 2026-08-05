@@ -83,3 +83,18 @@ export async function writeFileAtomicExclusive(
     throw error;
   }
 }
+
+export async function publishTemporaryFileAtomicExclusive(
+  temporaryPath: string,
+  targetPath: string
+): Promise<void> {
+  const temporaryDirectory = dirname(temporaryPath);
+  const targetDirectory = dirname(targetPath);
+  if (temporaryDirectory !== targetDirectory) {
+    throw new Error("Atomic publication requires one directory");
+  }
+
+  await link(temporaryPath, targetPath);
+  await unlink(temporaryPath);
+  await syncDirectoryBestEffort(targetDirectory);
+}

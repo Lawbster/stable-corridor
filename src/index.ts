@@ -27,6 +27,13 @@ export {
   type JournalRecoveryResult
 } from "./collector/journal/recovery.js";
 export {
+  compressClosedJournals,
+  journalCompressionMetadataSchema,
+  type CompressClosedJournalsOptions,
+  type CompressClosedJournalsResult,
+  type JournalCompressionMetadata
+} from "./collector/journal/compression.js";
+export {
   collectorHealthSchema,
   type CollectorHealth
 } from "./health/schema.js";

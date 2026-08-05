@@ -61,7 +61,7 @@ function partNumberFromName(
   eventType: NormalizedEventType
 ): number | undefined {
   const pattern = new RegExp(
-    `^${escapeRegularExpression(eventType)}-(\\d{6})\\.jsonl(?:\\.open)?$`,
+    `^${escapeRegularExpression(eventType)}-(\\d{6})\\.jsonl(?:\\.open|\\.gz)?$`,
     "u"
   );
   const match = pattern.exec(fileName);

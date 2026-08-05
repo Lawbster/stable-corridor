@@ -6,7 +6,8 @@ No trading bot exists. No capital, API keys, authenticated exchange access, or l
 
 ## Current phase
 
-The bounded Stage B public collector is deployed and under validation.
+The bounded Stage B public collector completed its initial 72-hour
+validation window and remains deployed.
 Coinbase, Binance, Bybit, and Kraken adapters collect only unauthenticated
 public metadata, L2 books, trades, and health inputs. The runner writes one
 globally ordered deterministic journal, publishes atomic health, creates
@@ -69,6 +70,9 @@ are in `docs/operations/collector-pilot.md`.
 
 The pull-only WSL runtime mirror is documented in
 `docs/operations/local-rsync.md`.
+
+Verified, source-preserving compression of immutable closed journals is
+documented in `docs/operations/journal-compression.md`.
 
 ## Development gates
 

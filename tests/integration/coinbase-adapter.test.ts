@@ -205,7 +205,7 @@ describe("Coinbase public adapter", () => {
     ).toEqual([]);
   });
 
-  it("detects malformed, out-of-order, and trade-ID gaps", () => {
+  it("detects malformed and out-of-order messages", () => {
     const malformedAdapter = newAdapter();
     malformedAdapter.beginConnection(firstConnectionId, receivedBase);
     expect(
@@ -227,29 +227,49 @@ describe("Coinbase public adapter", () => {
       payload: { reason: "out_of_order_sequence" }
     });
 
-    const tradeGapAdapter = newAdapter();
-    initialize(tradeGapAdapter);
-    expect(
-      tradeGapAdapter.ingest(
-        {
-          ...coinbaseTradeUpdate,
-          sequence_num: 4,
-          events: [
-            {
-              ...coinbaseTradeUpdate.events[0],
-              trades: [
-                {
-                  ...coinbaseTradeUpdate.events[0].trades[0],
-                  trade_id: "18143646"
-                }
-              ]
-            }
-          ]
-        },
-        receivedBase + 5
-      )[0]
-    ).toMatchObject({
-      payload: { reason: "trade_id_gap_or_out_of_order" }
+  });
+
+  it("records a non-adjacent trade ID without invalidating the feed", () => {
+    const adapter = newAdapter();
+    initialize(adapter);
+    const result = adapter.ingest(
+      {
+        ...coinbaseTradeUpdate,
+        sequence_num: 4,
+        events: [
+          {
+            ...coinbaseTradeUpdate.events[0],
+            trades: [
+              {
+                ...coinbaseTradeUpdate.events[0].trades[0],
+                trade_id: "18143646"
+              }
+            ]
+          }
+        ]
+      },
+      receivedBase + 5
+    );
+
+    expect(eventTypes(result)).toEqual(["trade", "trade_continuity"]);
+    expect(result[1]).toMatchObject({
+      eventType: "trade_continuity",
+      payload: {
+        messageType: "update",
+        previousTradeId: "18143644",
+        firstObservedTradeId: "18143646",
+        firstAcceptedTradeId: "18143646",
+        acceptedTradeCount: 1,
+        overlapTradeCount: 0,
+        duplicateTradeCount: 0,
+        nonAdjacentIdObserved: true
+      }
+    });
+    expect(adapter.diagnostics().products[0]).toMatchObject({
+      state: "healthy",
+      lastTradeId: "18143646",
+      gapCount: 0,
+      nonAdjacentTradeIdCount: 1
     });
   });
 
@@ -382,8 +402,21 @@ describe("Coinbase public adapter", () => {
       { ...coinbaseTradeSnapshot, sequence_num: 4 },
       receivedBase + 5
     );
-    expect(eventTypes(repeated)).toEqual(["feed_status"]);
+    expect(eventTypes(repeated)).toEqual([
+      "trade_continuity",
+      "feed_status"
+    ]);
     expect(repeated[0]).toMatchObject({
+      eventType: "trade_continuity",
+      payload: {
+        messageType: "snapshot",
+        previousTradeId: "18143644",
+        acceptedTradeCount: 0,
+        overlapTradeCount: 2,
+        nonAdjacentIdObserved: false
+      }
+    });
+    expect(repeated[1]).toMatchObject({
       payload: {
         state: "healthy",
         eligibleForResearch: true,
@@ -421,12 +454,24 @@ describe("Coinbase public adapter", () => {
       },
       receivedBase + 5
     );
-    expect(eventTypes(repeated)).toEqual(["trade", "feed_status"]);
+    expect(eventTypes(repeated)).toEqual([
+      "trade",
+      "trade_continuity",
+      "feed_status"
+    ]);
     expect(repeated[0]).toMatchObject({
       eventType: "trade",
       payload: { tradeId: "18143645" }
     });
     expect(repeated[1]).toMatchObject({
+      eventType: "trade_continuity",
+      payload: {
+        acceptedTradeCount: 1,
+        overlapTradeCount: 2,
+        nonAdjacentIdObserved: false
+      }
+    });
+    expect(repeated[2]).toMatchObject({
       payload: {
         state: "healthy",
         reason: "repeated_trade_snapshot_reconciled"
@@ -439,7 +484,7 @@ describe("Coinbase public adapter", () => {
     });
   });
 
-  it("fails closed when a repeated snapshot has a forward trade gap", () => {
+  it("records a non-adjacent repeated-snapshot tail", () => {
     const adapter = newAdapter();
     initialize(adapter);
 
@@ -461,13 +506,29 @@ describe("Coinbase public adapter", () => {
       },
       receivedBase + 5
     );
-    expect(eventTypes(repeated)).toEqual(["feed_status"]);
-    expect(repeated[0]).toMatchObject({
+    expect(eventTypes(repeated)).toEqual([
+      "trade",
+      "trade_continuity",
+      "feed_status"
+    ]);
+    expect(repeated[1]).toMatchObject({
+      eventType: "trade_continuity",
       payload: {
-        state: "gapped",
-        eligibleForResearch: false,
-        reason: "trade_snapshot_gap_or_out_of_order"
+        previousTradeId: "18143644",
+        firstAcceptedTradeId: "18143646",
+        nonAdjacentIdObserved: true
       }
+    });
+    expect(repeated[2]).toMatchObject({
+      payload: {
+        state: "healthy",
+        reason: "repeated_trade_snapshot_reconciled"
+      }
+    });
+    expect(adapter.diagnostics().products[0]).toMatchObject({
+      state: "healthy",
+      gapCount: 0,
+      nonAdjacentTradeIdCount: 1
     });
   });
 
@@ -481,20 +542,93 @@ describe("Coinbase public adapter", () => {
       receivedBase + 5_006
     );
     expect(eventTypes(repeated)).toEqual([
+      "trade_continuity",
       "feed_status",
       "feed_status"
     ]);
-    expect(repeated[0]).toMatchObject({
+    expect(repeated[1]).toMatchObject({
       payload: {
         state: "healthy",
         eligibleForResearch: true,
         reason: null
       }
     });
-    expect(repeated[1]).toMatchObject({
+    expect(repeated[2]).toMatchObject({
       payload: {
         state: "healthy",
         reason: "repeated_trade_snapshot_ignored"
+      }
+    });
+  });
+
+  it("reconciles an overlapping update without duplicating trades", () => {
+    const adapter = newAdapter();
+    initialize(adapter);
+    const result = adapter.ingest(
+      {
+        ...coinbaseTradeUpdate,
+        sequence_num: 4,
+        events: [
+          {
+            type: "update",
+            trades: [
+              {
+                ...coinbaseTradeUpdate.events[0].trades[0],
+                trade_id: "18143644"
+              },
+              coinbaseTradeUpdate.events[0].trades[0]
+            ]
+          }
+        ]
+      },
+      receivedBase + 5
+    );
+
+    expect(eventTypes(result)).toEqual(["trade", "trade_continuity"]);
+    expect(result[0]).toMatchObject({
+      eventType: "trade",
+      payload: { tradeId: "18143645" }
+    });
+    expect(result[1]).toMatchObject({
+      eventType: "trade_continuity",
+      payload: {
+        previousTradeId: "18143644",
+        acceptedTradeCount: 1,
+        overlapTradeCount: 1,
+        duplicateTradeCount: 0,
+        nonAdjacentIdObserved: false
+      }
+    });
+  });
+
+  it("fails closed on conflicting duplicate trade details", () => {
+    const adapter = newAdapter();
+    initialize(adapter);
+    const result = adapter.ingest(
+      {
+        ...coinbaseTradeUpdate,
+        sequence_num: 4,
+        events: [
+          {
+            type: "update",
+            trades: [
+              coinbaseTradeUpdate.events[0].trades[0],
+              {
+                ...coinbaseTradeUpdate.events[0].trades[0],
+                price: "1.1522"
+              }
+            ]
+          }
+        ]
+      },
+      receivedBase + 5
+    );
+
+    expect(eventTypes(result)).toEqual(["feed_status"]);
+    expect(result[0]).toMatchObject({
+      payload: {
+        state: "gapped",
+        reason: "conflicting_duplicate_trade_id"
       }
     });
   });

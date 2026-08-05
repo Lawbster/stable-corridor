@@ -3,11 +3,21 @@ import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
 import { stat } from "node:fs/promises";
 
+import { z } from "zod";
+
 import { canonicalJsonLine } from "../serialization.js";
 import {
+  normalizedEventTypeSchema,
   parseNormalizedEvent,
   type NormalizedEventType
 } from "../schema/events.js";
+import {
+  canonicalProductSchema,
+  positiveSafeIntegerSchema,
+  schemaVersionSchema,
+  utcEpochMillisecondsSchema,
+  venueSchema
+} from "../schema/primitives.js";
 import { writeFileAtomic } from "../filesystem/atomic-write.js";
 import type { JournalRoute } from "./path.js";
 
@@ -28,7 +38,24 @@ export interface JournalPartMetadata {
   readonly finalizedAtMs: number;
 }
 
-async function sha256File(filePath: string): Promise<string> {
+export const journalPartMetadataSchema = z.strictObject({
+  schemaVersion: schemaVersionSchema,
+  venue: venueSchema,
+  product: canonicalProductSchema,
+  eventType: normalizedEventTypeSchema,
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/u),
+  part: positiveSafeIntegerSchema.max(999_999),
+  fileName: z.string().min(1).max(512),
+  bytes: positiveSafeIntegerSchema,
+  eventCount: positiveSafeIntegerSchema,
+  firstReceivedTimestampMs: utcEpochMillisecondsSchema,
+  lastReceivedTimestampMs: utcEpochMillisecondsSchema,
+  sha256: z.string().regex(/^[0-9a-f]{64}$/u),
+  compressionEligible: z.literal(true),
+  finalizedAtMs: utcEpochMillisecondsSchema
+});
+
+export async function sha256File(filePath: string): Promise<string> {
   const hash = createHash("sha256");
   for await (const chunk of createReadStream(filePath)) {
     hash.update(chunk);
@@ -101,5 +128,8 @@ export async function writeJournalPartMetadata(
   metadataPath: string,
   metadata: JournalPartMetadata
 ): Promise<void> {
-  await writeFileAtomic(metadataPath, canonicalJsonLine(metadata));
+  await writeFileAtomic(
+    metadataPath,
+    canonicalJsonLine(journalPartMetadataSchema.parse(metadata))
+  );
 }

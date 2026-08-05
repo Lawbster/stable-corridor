@@ -1,6 +1,6 @@
 # VPS Boundaries
 
-**Status:** Bounded public collector deployed; validation in progress.
+**Status:** Initial bounded 72-hour validation complete; collector remains deployed.
 
 ## Isolation
 
@@ -88,8 +88,8 @@ The first approximately 20-hour sample measured `1.81 GiB/day` of
 uncompressed Stable Corridor data. Collector RSS was approximately
 `233 MiB`, event-loop lag was zero in the sampled health record, and the
 collector accounted for approximately `11 MiB` of swap. Root free space
-remained above the configured 40 GiB reserve. These are interim
-measurements; the 72-hour result remains the capacity gate.
+remained above the configured 40 GiB reserve. These were interim
+measurements before the completed 72-hour capacity observation below.
 
 The corresponding local closed-journal audit verified 304 of 304 parts,
 covering `2,803,222` events and `1,717,518,706` bytes. Gzip level 6 reduced
@@ -97,6 +97,21 @@ those immutable bytes to `95,924,798`, a measured `5.5851%` ratio. This is
 an offline sizing result only: the deployed collector still writes and
 retains uncompressed journals, and no automatic compression or source
 deletion is authorized during the pilot.
+
+At approximately 77.3 elapsed hours, the data root held
+`6,696,775,793` bytes and was growing at approximately `1.94 GiB/day`.
+The collector remained healthy with zero journal errors, approximately
+`228 MiB` RSS, and `1 ms` event-loop lag. A local audit verified 519 of 519
+closed parts containing `7,641,004` events and `4,638,773,335` logical
+bytes. Another `2,058,657,180` bytes remained in live open parts.
+
+Gzip level 6 reduced the closed bytes to `257,717,238`, a measured
+`5.5557%` ratio and `94.4443%` saving. Without compression, the 10 GiB
+collector ceiling was projected to arrive in approximately 1.94 days.
+A non-destructive verified compressor is therefore implemented for
+operator review. It does not prune source journals; the exact format and
+bounded trial are documented in
+`docs/operations/journal-compression.md`.
 
 ## Reserved PM2 names
 

@@ -3,6 +3,7 @@ import {
   bookDeltaEventSchema,
   feedStatusEventSchema,
   marketStatusEventSchema,
+  tradeContinuityEventSchema,
   tradeEventSchema,
   type NormalizedEvent
 } from "../../collector/schema/events.js";
@@ -65,6 +66,8 @@ interface ProductRuntime {
   gapCount: number;
   crossedBookCount: number;
   repeatedTradeSnapshotCount: number;
+  nonAdjacentTradeIdCount: number;
+  ignoredTradeCount: number;
 }
 
 export interface CoinbasePublicAdapterOptions {
@@ -88,6 +91,8 @@ export interface CoinbaseProductDiagnostics {
   readonly gapCount: number;
   readonly crossedBookCount: number;
   readonly repeatedTradeSnapshotCount: number;
+  readonly nonAdjacentTradeIdCount: number;
+  readonly ignoredTradeCount: number;
 }
 
 export interface CoinbaseAdapterDiagnostics {
@@ -107,6 +112,20 @@ function makerSideToAggressorSide(
   makerSide: CoinbaseMarketTrade["side"]
 ): "buy" | "sell" {
   return makerSide === "BUY" ? "sell" : "buy";
+}
+
+function sameCoinbaseTrade(
+  left: CoinbaseMarketTrade,
+  right: CoinbaseMarketTrade
+): boolean {
+  return (
+    left.trade_id === right.trade_id &&
+    left.product_id === right.product_id &&
+    left.price === right.price &&
+    left.size === right.size &&
+    left.time === right.time &&
+    left.side === right.side
+  );
 }
 
 export class CoinbasePublicAdapter {
@@ -162,7 +181,9 @@ export class CoinbasePublicAdapter {
         lastGoodVenueSequence: null,
         gapCount: 0,
         crossedBookCount: 0,
-        repeatedTradeSnapshotCount: 0
+        repeatedTradeSnapshotCount: 0,
+        nonAdjacentTradeIdCount: 0,
+        ignoredTradeCount: 0
       });
     }
   }
@@ -413,7 +434,9 @@ export class CoinbasePublicAdapter {
           gapCount: runtime.gapCount,
           crossedBookCount: runtime.crossedBookCount,
           repeatedTradeSnapshotCount:
-            runtime.repeatedTradeSnapshotCount
+            runtime.repeatedTradeSnapshotCount,
+          nonAdjacentTradeIdCount: runtime.nonAdjacentTradeIdCount,
+          ignoredTradeCount: runtime.ignoredTradeCount
         };
       })
     };
@@ -555,15 +578,46 @@ export class CoinbasePublicAdapter {
         if (runtime.gapped) {
           continue;
         }
-        let sorted = [...trades].sort((left, right) => {
+        const sorted = [...trades].sort((left, right) => {
           const leftId = tradeIdValue(left);
           const rightId = tradeIdValue(right);
           return leftId < rightId ? -1 : leftId > rightId ? 1 : 0;
         });
+        const unique: CoinbaseMarketTrade[] = [];
+        let duplicateTradeCount = 0;
+        let conflictingDuplicate = false;
+        for (const trade of sorted) {
+          const previous = unique.at(-1);
+          if (
+            previous !== undefined &&
+            previous.trade_id === trade.trade_id
+          ) {
+            duplicateTradeCount += 1;
+            if (!sameCoinbaseTrade(previous, trade)) {
+              conflictingDuplicate = true;
+              break;
+            }
+            continue;
+          }
+          unique.push(trade);
+        }
+        if (conflictingDuplicate) {
+          output.push(
+            ...this.#gapProduct(
+              runtime,
+              "conflicting_duplicate_trade_id",
+              String(message.sequence_num),
+              received
+            )
+          );
+          continue;
+        }
+
+        const previousTradeId = runtime.lastTradeId;
         let repeatedSnapshotReason: string | undefined;
 
         if (event.type === "snapshot" && runtime.tradeReady) {
-          if (runtime.lastTradeId === undefined) {
+          if (previousTradeId === undefined) {
             output.push(
               ...this.#gapProduct(
                 runtime,
@@ -575,55 +629,52 @@ export class CoinbasePublicAdapter {
             continue;
           }
           runtime.repeatedTradeSnapshotCount += 1;
-          sorted = sorted.filter(
-            (trade) => tradeIdValue(trade) > runtime.lastTradeId!
+        }
+
+        if (event.type === "update" && !runtime.tradeReady) {
+          output.push(
+            ...this.#gapProduct(
+              runtime,
+              "trade_update_before_snapshot",
+              String(message.sequence_num),
+              received
+            )
           );
+          continue;
+        }
+
+        const accepted =
+          previousTradeId === undefined
+            ? unique
+            : unique.filter(
+                (trade) => tradeIdValue(trade) > previousTradeId
+              );
+        const overlapTradeCount = unique.length - accepted.length;
+        let comparisonId = previousTradeId;
+        let nonAdjacentIdObserved = false;
+        for (const trade of accepted) {
+          const currentId = tradeIdValue(trade);
+          if (
+            comparisonId !== undefined &&
+            currentId !== comparisonId + 1n
+          ) {
+            nonAdjacentIdObserved = true;
+          }
+          comparisonId = currentId;
+        }
+        runtime.ignoredTradeCount +=
+          overlapTradeCount + duplicateTradeCount;
+        if (nonAdjacentIdObserved) {
+          runtime.nonAdjacentTradeIdCount += 1;
+        }
+        if (event.type === "snapshot" && previousTradeId !== undefined) {
           repeatedSnapshotReason =
-            sorted.length === 0
+            accepted.length === 0
               ? "repeated_trade_snapshot_ignored"
               : "repeated_trade_snapshot_reconciled";
         }
 
-        if (event.type === "update" || sorted.length > 0) {
-          if (!runtime.tradeReady || runtime.lastTradeId === undefined) {
-            if (event.type === "update") {
-              output.push(
-                ...this.#gapProduct(
-                  runtime,
-                  "trade_update_before_snapshot",
-                  String(message.sequence_num),
-                  received
-                )
-              );
-              continue;
-            }
-          } else {
-            let expected = runtime.lastTradeId + 1n;
-            let valid = true;
-            for (const trade of sorted) {
-              if (tradeIdValue(trade) !== expected) {
-                valid = false;
-                break;
-              }
-              expected += 1n;
-            }
-            if (!valid) {
-              output.push(
-                ...this.#gapProduct(
-                  runtime,
-                  event.type === "snapshot"
-                    ? "trade_snapshot_gap_or_out_of_order"
-                    : "trade_id_gap_or_out_of_order",
-                  String(message.sequence_num),
-                  received
-                )
-              );
-              continue;
-            }
-          }
-        }
-
-        for (const trade of sorted) {
+        for (const trade of accepted) {
           output.push(
             tradeEventSchema.parse({
               ...this.#commonEnvelope(
@@ -643,16 +694,53 @@ export class CoinbasePublicAdapter {
           );
         }
 
-        if (sorted.length > 0) {
-          runtime.lastTradeId = tradeIdValue(sorted.at(-1)!);
+        if (accepted.length > 0) {
+          runtime.lastTradeId = tradeIdValue(accepted.at(-1)!);
         }
         runtime.tradeReady = true;
         runtime.lastGoodVenueSequence = String(message.sequence_num);
+        const sourceTimestampMs = parseCoinbaseTimestamp(
+          message.timestamp
+        );
+        if (
+          repeatedSnapshotReason !== undefined ||
+          overlapTradeCount > 0 ||
+          duplicateTradeCount > 0 ||
+          nonAdjacentIdObserved
+        ) {
+          output.push(
+            tradeContinuityEventSchema.parse({
+              ...this.#commonEnvelope(
+                runtime.product,
+                sourceTimestampMs,
+                received,
+                String(message.sequence_num)
+              ),
+              eventType: "trade_continuity",
+              payload: {
+                messageType: event.type,
+                previousTradeId:
+                  previousTradeId?.toString() ?? null,
+                firstObservedTradeId: unique[0]!.trade_id,
+                lastObservedTradeId: unique.at(-1)!.trade_id,
+                firstAcceptedTradeId:
+                  accepted[0]?.trade_id ?? null,
+                lastAcceptedTradeId:
+                  accepted.at(-1)?.trade_id ?? null,
+                acceptedTradeCount: accepted.length,
+                overlapTradeCount,
+                duplicateTradeCount,
+                nonAdjacentIdObserved,
+                observedAtMs: received
+              }
+            })
+          );
+        }
         if (repeatedSnapshotReason !== undefined) {
           output.push(
             ...this.#reevaluateReadiness(
               runtime,
-              parseCoinbaseTimestamp(message.timestamp),
+              sourceTimestampMs,
               received,
               String(message.sequence_num)
             )
@@ -665,7 +753,7 @@ export class CoinbasePublicAdapter {
               repeatedSnapshotReason,
               String(message.sequence_num),
               received,
-              parseCoinbaseTimestamp(message.timestamp)
+              sourceTimestampMs
             )
           );
           continue;
@@ -673,7 +761,7 @@ export class CoinbasePublicAdapter {
         output.push(
           ...this.#reevaluateReadiness(
             runtime,
-            parseCoinbaseTimestamp(message.timestamp),
+            sourceTimestampMs,
             received,
             String(message.sequence_num)
           )

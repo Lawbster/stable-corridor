@@ -24,7 +24,7 @@ module.exports = {
       instances: 1,
       exec_mode: "fork",
       autorestart: false,
-      kill_timeout: 30000,
+      kill_timeout: 300000,
       time: true,
       out_file: "/var/log/stable-corridor/collector-out.log",
       error_file: "/var/log/stable-corridor/collector-error.log",

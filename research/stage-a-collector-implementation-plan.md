@@ -70,7 +70,7 @@ The approved A5 readiness slice now also includes:
 - one named PM2 artifact with automatic restart disabled;
 - targeted installation, operation, rollback, and 24/48/72-hour measurement instructions;
 - a public-network durability smoke in which all 13 feeds became healthy with zero journal errors.
-- 162 passing unit, integration, and replay tests across 37 files.
+- 177 passing unit, integration, and replay tests across 40 files.
 
 No authenticated client, account read, order path, transfer path, execution
 module, shadow strategy, or deployed process was added.
@@ -601,7 +601,8 @@ Stage A passes only when:
 - deployment paths and named PM2 boundaries cannot touch HYPE;
 - implementation authorization is explicitly given.
 
-The A1-A5 public-only collector has passed locally and is install-ready. The
-next gate is the operator-run bounded Stage B pilot followed by 24/48/72-hour
-storage, coverage, and resource review. Conventional FX, shadow research,
-and all execution work remain separately gated.
+The A1-A5 public-only collector passed locally and its initial bounded Stage
+B VPS collection remained healthy beyond 72 hours. The next gate is the
+final immutable pull and audit, followed by an explicit retention or fresh
+window decision. Conventional FX, shadow research, and all execution work
+remain separately gated.

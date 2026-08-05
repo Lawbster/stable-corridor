@@ -180,7 +180,7 @@ removed_open_files=0
 if ((dry_run == 0 && pull_data == 1)); then
   while IFS= read -r -d '' open_file; do
     closed_file="${open_file%.open}"
-    if [[ -f "$closed_file" ]]; then
+    if [[ -f "$closed_file" || -f "${closed_file}.gz" ]]; then
       rm -- "$open_file"
       ((removed_open_files += 1))
     fi

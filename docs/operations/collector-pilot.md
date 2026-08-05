@@ -1,6 +1,6 @@
 # Bounded Collector Pilot
 
-**Status:** deployed; bounded validation in progress
+**Status:** deployed; initial bounded 72-hour validation complete
 **Authorized process:** `stable-corridor-collector` only
 
 This runbook installs the public, unauthenticated collector without
@@ -142,11 +142,25 @@ npm run check
 npm run build
 export STABLE_CORRIDOR_COMMIT_SHA="$(git rev-parse HEAD)"
 export STABLE_CORRIDOR_NODE="$(command -v node)"
+pm2 sendSignal SIGINT stable-corridor-collector
+```
+
+Wait until the dedicated log reports `collector stopped
+reason=signal_sigint`, PM2 no longer reports the process online, and the
+closing run has an `end.json` manifest. Do not interrupt finalization.
+Then start the reviewed artifact:
+
+```sh
 pm2 restart ecosystem.config.cjs \
   --only stable-corridor-collector \
   --update-env
 pm2 save
 ```
+
+The collector has a five-minute PM2 graceful-stop allowance for subsequent
+targeted PM2 operations. Finalizing a large window can take several
+minutes because open journals are parsed, checksummed, renamed, and given
+immutable metadata.
 
 ## Rollback
 

@@ -77,12 +77,18 @@ The Advanced Trade public endpoint was then probed without a JWT. It delivered:
   `update`, but does not promise that a snapshot occurs only once. A repeated
   snapshot is therefore reconciled against the last accepted per-product
   trade ID instead of being treated as a gap solely because of its type.
-- Trades at or below the last accepted ID in a repeated snapshot are ignored.
-  A nonempty unseen tail is persisted only when it begins at the next ID and
-  remains consecutive. An empty overlap and an accepted tail each produce a
-  durable healthy diagnostic status; a forward gap or duplicate in the
-  unseen tail still fails closed.
-- Subsequent update trade IDs must be consecutive for each product.
+- Trades at or below the last accepted per-product ID in a snapshot or
+  update are treated as historical overlap. Forward IDs are persisted in
+  numeric order.
+- Coinbase documents exact continuity for WebSocket envelope
+  `sequence_num`, but does not document adjacent `trade_id` values as a
+  delivery contract. A non-adjacent ID is therefore retained rather than
+  forcing a reconnect.
+- Repeated snapshots, overlaps, duplicate IDs, and non-adjacent IDs produce
+  structured `trade_continuity` events with the observed and accepted ID
+  bounds and counts. Conflicting details for the same ID still fail closed.
+- Envelope sequence gaps, out-of-order messages, and updates before the
+  initial trade snapshot remain fail-closed conditions.
 - Exchange event time is preserved as `sourceTimestampMs`; receipt is captured
   immediately as `receivedTimestampMs`.
 - A product becomes research-eligible only after book, trade, status, and

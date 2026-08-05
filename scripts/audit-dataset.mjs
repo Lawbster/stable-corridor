@@ -10,14 +10,16 @@ import {
 } from "node:fs/promises";
 import { once } from "node:events";
 import { dirname, relative, resolve, sep } from "node:path";
+import { Transform } from "node:stream";
 import { StringDecoder } from "node:string_decoder";
-import { createGzip } from "node:zlib";
+import { createGunzip, createGzip } from "node:zlib";
 
 const eventTypes = new Set([
   "instrument",
   "book_checkpoint",
   "book_delta",
   "trade",
+  "trade_continuity",
   "market_status",
   "feed_status",
   "public_rail_status"
@@ -221,7 +223,17 @@ function observeEvent(context, route, event, filePath, lineNumber) {
   const product =
     context.byProduct[productKey] ??
     (context.byProduct[productKey] = newAggregate());
-  for (const aggregate of [context.total, venue, product]) {
+  const feedEventTypeKey =
+    `${route.venue}|${route.product}|${route.eventType}`;
+  const feedEventType =
+    context.byFeedEventType[feedEventTypeKey] ??
+    (context.byFeedEventType[feedEventTypeKey] = newAggregate());
+  for (const aggregate of [
+    context.total,
+    venue,
+    product,
+    feedEventType
+  ]) {
     aggregate.events += 1;
     increment(aggregate.eventTypes, route.eventType);
     observeTimestamp(aggregate, event.receivedTimestampMs);
@@ -232,6 +244,7 @@ function observeEvent(context, route, event, filePath, lineNumber) {
     context.total.latencies.push(latency);
     venue.latencies.push(latency);
     product.latencies.push(latency);
+    feedEventType.latencies.push(latency);
   }
 
   const run =
@@ -281,10 +294,62 @@ function observeEvent(context, route, event, filePath, lineNumber) {
       `${route.venue}|${route.product}|${state}|${reason ?? "none"}`
     );
   }
+  if (route.eventType === "trade_continuity") {
+    const payload = event.payload;
+    if (
+      payload === null ||
+      typeof payload !== "object" ||
+      (payload.messageType !== "snapshot" &&
+        payload.messageType !== "update") ||
+      typeof payload.nonAdjacentIdObserved !== "boolean" ||
+      !Number.isSafeInteger(payload.acceptedTradeCount) ||
+      !Number.isSafeInteger(payload.overlapTradeCount) ||
+      !Number.isSafeInteger(payload.duplicateTradeCount) ||
+      payload.acceptedTradeCount < 0 ||
+      payload.overlapTradeCount < 0 ||
+      payload.duplicateTradeCount < 0
+    ) {
+      throw new Error(
+        `${filePath}:${lineNumber}: invalid trade-continuity payload`
+      );
+    }
+    increment(
+      context.tradeContinuity,
+      `${route.venue}|${route.product}|${payload.messageType}|` +
+        `non_adjacent=${payload.nonAdjacentIdObserved}|` +
+        `overlap=${payload.overlapTradeCount > 0}|` +
+        `duplicate=${payload.duplicateTradeCount > 0}`
+    );
+    const totalsKey = `${route.venue}|${route.product}`;
+    const totals =
+      context.tradeContinuityTotals[totalsKey] ??
+      (context.tradeContinuityTotals[totalsKey] = {
+        messages: 0,
+        snapshots: 0,
+        updates: 0,
+        acceptedTrades: 0,
+        overlapTrades: 0,
+        duplicateTrades: 0,
+        nonAdjacentMessages: 0
+      });
+    totals.messages += 1;
+    if (payload.messageType === "snapshot") {
+      totals.snapshots += 1;
+    } else {
+      totals.updates += 1;
+    }
+    totals.acceptedTrades += payload.acceptedTradeCount;
+    totals.overlapTrades += payload.overlapTradeCount;
+    totals.duplicateTrades += payload.duplicateTradeCount;
+    if (payload.nonAdjacentIdObserved) {
+      totals.nonAdjacentMessages += 1;
+    }
+  }
 }
 
-async function analyzeJournal(
-  filePath,
+async function analyzeJournalChunks(
+  chunks,
+  displayPath,
   route,
   context,
   compression
@@ -296,6 +361,7 @@ async function analyzeJournal(
   let gzipBytes = 0;
   let pending = "";
   let eventCount = 0;
+  let bytes = 0;
   let firstReceivedTimestampMs;
   let lastReceivedTimestampMs;
 
@@ -306,7 +372,8 @@ async function analyzeJournal(
   }
 
   try {
-    for await (const chunk of createReadStream(filePath)) {
+    for await (const chunk of chunks) {
+      bytes += chunk.length;
       hash.update(chunk);
       if (gzip !== undefined && !gzip.write(chunk)) {
         await once(gzip, "drain");
@@ -318,10 +385,10 @@ async function analyzeJournal(
         pending = pending.slice(newlineIndex + 1);
         eventCount += 1;
         if (line.length === 0) {
-          throw new Error(`${filePath}:${eventCount}: empty line`);
+          throw new Error(`${displayPath}:${eventCount}: empty line`);
         }
         const event = JSON.parse(line);
-        observeEvent(context, route, event, filePath, eventCount);
+        observeEvent(context, route, event, displayPath, eventCount);
         firstReceivedTimestampMs ??= event.receivedTimestampMs;
         lastReceivedTimestampMs = event.receivedTimestampMs;
         newlineIndex = pending.indexOf("\n");
@@ -334,25 +401,69 @@ async function analyzeJournal(
   pending += decoder.end();
   if (pending.length !== 0) {
     gzip?.destroy();
-    throw new Error(`${filePath}: closed journal lacks a final newline`);
+    throw new Error(
+      `${displayPath}: closed journal lacks a final newline`
+    );
   }
   if (eventCount === 0) {
     gzip?.destroy();
-    throw new Error(`${filePath}: closed journal is empty`);
+    throw new Error(`${displayPath}: closed journal is empty`);
   }
   if (gzip !== undefined) {
     const ended = once(gzip, "end");
     gzip.end();
     await ended;
   }
-  const information = await stat(filePath);
   return {
-    bytes: information.size,
+    bytes,
     gzipBytes,
     eventCount,
     firstReceivedTimestampMs,
     lastReceivedTimestampMs,
     sha256: hash.digest("hex")
+  };
+}
+
+async function analyzeJournal(
+  filePath,
+  route,
+  context,
+  compression
+) {
+  return analyzeJournalChunks(
+    createReadStream(filePath),
+    filePath,
+    route,
+    context,
+    compression
+  );
+}
+
+async function analyzeCompressedJournal(filePath, route, context) {
+  const compressedHash = createHash("sha256");
+  let compressedBytes = 0;
+  const observer = new Transform({
+    transform(chunk, _encoding, callback) {
+      compressedBytes += chunk.length;
+      compressedHash.update(chunk);
+      callback(null, chunk);
+    }
+  });
+  const decompressed = createReadStream(filePath)
+    .pipe(observer)
+    .pipe(createGunzip());
+  const analysis = await analyzeJournalChunks(
+    decompressed,
+    filePath,
+    route,
+    context,
+    "none"
+  );
+  return {
+    ...analysis,
+    gzipBytes: compressedBytes,
+    compressedBytes,
+    compressedSha256: compressedHash.digest("hex")
   };
 }
 
@@ -390,6 +501,47 @@ function metadataDifferences(metadata, route, analysis) {
   return differences;
 }
 
+function compressionMetadataDifferences(
+  metadata,
+  sourceMetadata,
+  sourceMetadataContents,
+  route,
+  analysis
+) {
+  const expected = {
+    schemaVersion: 1,
+    recordType: "journal_compression",
+    algorithm: "gzip",
+    level: 6,
+    sourceFileName: route.fileName,
+    sourceMetadataFileName: `${route.fileName}.meta.json`,
+    compressedFileName: `${route.fileName}.gz`,
+    sourceBytes: analysis.bytes,
+    compressedBytes: analysis.compressedBytes,
+    sourceSha256: analysis.sha256,
+    sourceMetadataSha256: createHash("sha256")
+      .update(sourceMetadataContents)
+      .digest("hex"),
+    compressedSha256: analysis.compressedSha256
+  };
+  const differences = [];
+  for (const [key, value] of Object.entries(expected)) {
+    if (metadata[key] !== value) {
+      differences.push(
+        `${key} expected=${JSON.stringify(value)} ` +
+          `actual=${JSON.stringify(metadata[key])}`
+      );
+    }
+  }
+  if (
+    !Number.isSafeInteger(metadata.createdAtMs) ||
+    metadata.createdAtMs < sourceMetadata.finalizedAtMs
+  ) {
+    differences.push("createdAtMs is invalid");
+  }
+  return differences;
+}
+
 async function inspectOpenPart(filePath) {
   const information = await stat(filePath);
   if (information.size === 0) {
@@ -406,6 +558,16 @@ async function inspectOpenPart(filePath) {
   } finally {
     await handle.close();
   }
+}
+
+async function hashFile(filePath) {
+  const hash = createHash("sha256");
+  let bytes = 0;
+  for await (const chunk of createReadStream(filePath)) {
+    bytes += chunk.length;
+    hash.update(chunk);
+  }
+  return { bytes, sha256: hash.digest("hex") };
 }
 
 function summarizeAggregate(aggregate, compression) {
@@ -488,12 +650,28 @@ async function auditDataset(options) {
       path
     ])
   );
-  const closedPaths = [...relativePaths.keys()]
+  const sourceJournalPaths = [...relativePaths.keys()]
     .filter((path) => path.endsWith(".jsonl"))
     .sort();
+  const compressedJournalPaths = [...relativePaths.keys()]
+    .filter((path) => path.endsWith(".jsonl.gz"))
+    .sort();
+  const closedPaths = [
+    ...new Set([
+      ...sourceJournalPaths,
+      ...compressedJournalPaths.map((path) =>
+        path.slice(0, -".gz".length)
+      )
+    ])
+  ].sort();
   const metadataPaths = new Set(
     [...relativePaths.keys()].filter((path) =>
       path.endsWith(".jsonl.meta.json")
+    )
+  );
+  const compressionMetadataPaths = new Set(
+    [...relativePaths.keys()].filter((path) =>
+      path.endsWith(".jsonl.gz.meta.json")
     )
   );
   const openPaths = [...relativePaths.keys()]
@@ -504,7 +682,9 @@ async function auditDataset(options) {
     .sort();
   const recognizedPaths = new Set([
     ...closedPaths,
+    ...compressedJournalPaths,
     ...metadataPaths,
+    ...compressionMetadataPaths,
     ...openPaths,
     ...manifestPaths
   ]);
@@ -514,18 +694,31 @@ async function auditDataset(options) {
     total: newAggregate(),
     byVenue: {},
     byProduct: {},
+    byFeedEventType: {},
     feedStatusReasons: {},
+    tradeContinuity: {},
+    tradeContinuityTotals: {},
     runs: new Map()
   };
   let verifiedClosedParts = 0;
+  let verifiedCompressedParts = 0;
+  let sourcePresentParts = 0;
+  let compressedOnlyParts = 0;
+  let storedCompressedBytes = 0;
+  let storedSourceBytes = 0;
 
   for (let index = 0; index < closedPaths.length; index += 1) {
     const relativePath = closedPaths[index];
-    const filePath = relativePaths.get(relativePath);
+    const sourcePath = relativePaths.get(relativePath);
+    const compressedRelativePath = `${relativePath}.gz`;
+    const compressedPath = relativePaths.get(compressedRelativePath);
     const route = parseRoute(relativePath);
     const metadataRelativePath = `${relativePath}.meta.json`;
     const metadataPath = relativePaths.get(metadataRelativePath);
-    if (route === null || filePath === undefined) {
+    if (
+      route === null ||
+      (sourcePath === undefined && compressedPath === undefined)
+    ) {
       failures.push(`${relativePath}: invalid closed journal path`);
       continue;
     }
@@ -539,13 +732,23 @@ async function auditDataset(options) {
       );
     }
     try {
-      const analysis = await analyzeJournal(
-        filePath,
-        route,
-        context,
-        options.compression
+      const sourceMetadataContents = await readFile(metadataPath);
+      const metadata = JSON.parse(
+        sourceMetadataContents.toString("utf8")
       );
-      const metadata = JSON.parse(await readFile(metadataPath, "utf8"));
+      const analysis =
+        compressedPath === undefined
+          ? await analyzeJournal(
+              sourcePath,
+              route,
+              context,
+              options.compression
+            )
+          : await analyzeCompressedJournal(
+              compressedPath,
+              route,
+              context
+            );
       const differences = metadataDifferences(
         metadata,
         route,
@@ -557,11 +760,62 @@ async function auditDataset(options) {
         );
         continue;
       }
+      if (sourcePath !== undefined) {
+        sourcePresentParts += 1;
+        if (compressedPath !== undefined) {
+          const sourceObservation = await hashFile(sourcePath);
+          if (
+            sourceObservation.bytes !== analysis.bytes ||
+            sourceObservation.sha256 !== analysis.sha256
+          ) {
+            failures.push(
+              `${relativePath}: source and compressed content differ`
+            );
+            continue;
+          }
+        }
+      } else {
+        compressedOnlyParts += 1;
+      }
+      if (compressedPath !== undefined) {
+        const compressionMetadataPath = relativePaths.get(
+          `${compressedRelativePath}.meta.json`
+        );
+        if (compressionMetadataPath === undefined) {
+          failures.push(
+            `${compressedRelativePath}: compression metadata is missing`
+          );
+          continue;
+        }
+        const compressionMetadata = JSON.parse(
+          await readFile(compressionMetadataPath, "utf8")
+        );
+        const compressionDifferences = compressionMetadataDifferences(
+          compressionMetadata,
+          metadata,
+          sourceMetadataContents,
+          route,
+          analysis
+        );
+        if (compressionDifferences.length > 0) {
+          failures.push(
+            `${compressedRelativePath}: compression metadata mismatch: ` +
+              compressionDifferences.join("; ")
+          );
+          continue;
+        }
+        verifiedCompressedParts += 1;
+        storedCompressedBytes += analysis.compressedBytes;
+        storedSourceBytes += analysis.bytes;
+      }
       verifiedClosedParts += 1;
       for (const aggregate of [
         context.total,
         context.byVenue[route.venue],
-        context.byProduct[`${route.venue}|${route.product}`]
+        context.byProduct[`${route.venue}|${route.product}`],
+        context.byFeedEventType[
+          `${route.venue}|${route.product}|${route.eventType}`
+        ]
       ]) {
         aggregate.closedBytes += analysis.bytes;
         aggregate.gzipBytes += analysis.gzipBytes;
@@ -580,8 +834,20 @@ async function auditDataset(options) {
       0,
       -".meta.json".length
     );
-    if (!relativePaths.has(journalPath)) {
+    if (
+      !relativePaths.has(journalPath) &&
+      !relativePaths.has(`${journalPath}.gz`)
+    ) {
       failures.push(`${metadataPath}: orphan metadata`);
+    }
+  }
+  for (const metadataPath of compressionMetadataPaths) {
+    const compressedPath = metadataPath.slice(
+      0,
+      -".meta.json".length
+    );
+    if (!relativePaths.has(compressedPath)) {
+      failures.push(`${metadataPath}: orphan compression metadata`);
     }
   }
 
@@ -598,7 +864,11 @@ async function auditDataset(options) {
     if (inspection.hasPartialLine) {
       openPartsWithPartialLine += 1;
     }
-    if (relativePaths.has(relativePath.slice(0, -".open".length))) {
+    const closedPath = relativePath.slice(0, -".open".length);
+    if (
+      relativePaths.has(closedPath) ||
+      relativePaths.has(`${closedPath}.gz`)
+    ) {
       openPartsAlsoClosed += 1;
       failures.push(
         `${relativePath}: open and closed forms both exist locally`
@@ -680,6 +950,17 @@ async function auditDataset(options) {
       options.compression
     );
   }
+  const byFeedEventType = {};
+  for (
+    const [key, aggregate] of Object.entries(
+      context.byFeedEventType
+    ).sort(([left], [right]) => left.localeCompare(right))
+  ) {
+    byFeedEventType[key] = summarizeAggregate(
+      aggregate,
+      options.compression
+    );
+  }
   const startWithoutEnd = [...starts.keys()]
     .filter((runId) => !ends.has(runId))
     .sort();
@@ -694,6 +975,7 @@ async function auditDataset(options) {
       closedParts: closedPaths.length,
       verifiedClosedParts,
       metadataFiles: metadataPaths.size,
+      compressionMetadataFiles: compressionMetadataPaths.size,
       failures
     },
     mutableDataExcluded: {
@@ -705,7 +987,28 @@ async function auditDataset(options) {
     total: summarizeAggregate(context.total, options.compression),
     byVenue,
     byProduct,
+    byFeedEventType,
+    storedCompression: {
+      compressedParts: compressedJournalPaths.length,
+      verifiedCompressedParts,
+      sourcePresentParts,
+      compressedOnlyParts,
+      sourceBytes: storedSourceBytes,
+      compressedBytes: storedCompressedBytes,
+      ratio:
+        storedSourceBytes === 0
+          ? null
+          : round(storedCompressedBytes / storedSourceBytes),
+      spaceSavingFraction:
+        storedSourceBytes === 0
+          ? null
+          : round(1 - storedCompressedBytes / storedSourceBytes)
+    },
     feedStatusReasons: sortedRecord(context.feedStatusReasons),
+    tradeContinuity: sortedRecord(context.tradeContinuity),
+    tradeContinuityTotals: sortedRecord(
+      context.tradeContinuityTotals
+    ),
     provenance: {
       startManifests: starts.size,
       endManifests: ends.size,
@@ -726,7 +1029,7 @@ async function auditDataset(options) {
       liveBotCalibrationBlockers: [
         "This audit excludes mutable open journal parts.",
         "Book-state replay and crossed-venue strategy simulation are not yet implemented.",
-        "Historical run manifests are absent until the upgraded collector is deployed.",
+        "Some legacy runs predate immutable run manifests.",
         "A longer representative collection window is still required."
       ]
     }

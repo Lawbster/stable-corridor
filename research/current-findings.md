@@ -103,7 +103,7 @@ The operator reported flat outbound USDC fees of `1 USDC` on Solana and `0.5 USD
 
 On 2026-08-02, a live unauthenticated probe of Coinbase Exchange WebSocket `level2` returned a subscription error stating that `level2`, `level3`, and `full` now require authentication. No credentials were added or used. Coinbase Advanced Trade's public market-data WebSocket was then verified unauthenticated for both `EURC-USDC` and `USDC-EUR`, including `level2`, `market_trades`, `status`, and `heartbeats`.
 
-The implemented A3 adapter treats Coinbase `level2` quantities as absolute sizes, removes zero-size levels, preserves connection and venue sequence state, reconciles overlapping repeated trade snapshots, and fails closed on a sequence gap, unresolved trade-ID gap, stale or unavailable product, malformed message, oversized frame, update before snapshot, or crossed book. Coinbase documents trade `side` as the maker side, so the normalized persisted side is inverted to represent the aggressor.
+The implemented A3 adapter treats Coinbase `level2` quantities as absolute sizes, removes zero-size levels, preserves connection and venue sequence state, reconciles overlapping repeated trade snapshots, and fails closed on an envelope sequence gap, conflicting duplicate trade details, stale or unavailable product, malformed message, oversized frame, update before snapshot, or crossed book. Non-adjacent forward trade IDs are retained with structured continuity evidence because Coinbase does not document adjacency as a delivery guarantee. Coinbase documents trade `side` as the maker side, so the normalized persisted side is inverted to represent the aggressor.
 
 The public Advanced Trade product REST response reported a `2 USDC` quote minimum for `EURC-USDC`, while the older Exchange product response reported `1 USDC` and the operator observed an approximately `1` unit UI minimum. The live `status` channel also reported a `0.01` quote increment where public REST reported `0.0001`. The adapter therefore treats Advanced Trade public REST as the product-rules authority, uses `status` for availability rather than increments, records the discrepancies, and requires current metadata instead of silently reconciling conflicting fields.
 
@@ -191,11 +191,13 @@ collector's recovery code, and are retained as genuine transport
 disconnects. Coinbase's collector-requested recoveries included repeated
 `market_trades` snapshots. Coinbase's public contract permits both
 `snapshot` and `update` event types but does not state that a snapshot is
-one-time-only. The adapter now discards the already-seen overlap, accepts
-only a consecutive unseen tail, journals a healthy reconciliation
-diagnostic, and still fails closed on a real forward trade-ID gap. The
-historical `duplicate_trade_snapshot` events remain valid evidence of the
-previous collector behavior.
+one-time-only. The first reconciliation correction discarded already-seen
+overlap, accepted an unseen tail, and journaled a healthy diagnostic, but
+still assumed adjacent numeric trade IDs. The later 77.3-hour audit showed
+that assumption also caused needless reconnects. The current correction is
+described below. Historical `duplicate_trade_snapshot` and
+`trade_id_gap_or_out_of_order` events remain valid evidence of earlier
+collector behavior.
 
 Over the same interval, data grew from `12,101,557` to `1,680,697,090`
 bytes, approximately `1.81 GiB/day` uncompressed. At that rate the 10 GiB
@@ -215,6 +217,23 @@ parts through gzip level 6 produced `95,924,798` bytes, a measured ratio of
 This establishes compression potential, not authorization for an
 on-server compression or deletion workflow.
 
+At approximately 77.3 elapsed hours, the collector remained healthy with
+zero journal errors, approximately `228 MiB` RSS, and `1 ms` event-loop
+lag. The mirror held approximately `6.70 GB`; 519 of 519 immutable parts
+passed route, metadata, event-count, timestamp, and SHA-256 verification.
+Those parts contained `7,641,004` events and `4,638,773,335` logical
+bytes. Gzip level 6 produced `257,717,238` bytes, a `5.5557%` ratio.
+
+The deployed run recorded 58 Coinbase recoveries caused by the adapter's
+exactly-adjacent `trade_id` assumption. Coinbase documents continuity for
+WebSocket envelope `sequence_num`, while its `market_trades` channel
+documents 250 ms aggregation but no adjacent-ID guarantee. Repeated
+snapshot reconciliation separately succeeded 53 times without forcing a
+reconnect. The adapter now uses envelope sequence as the delivery
+integrity boundary, deduplicates overlaps, retains non-adjacent IDs, and
+persists structured `trade_continuity` evidence. Conflicting duplicate
+details remain fail-closed.
+
 ## Maker versus taker safeguard
 
 A market order is always a taker order. A normal limit order can also be a taker if its price immediately matches the opposite side of the book.
@@ -224,8 +243,9 @@ A Post Only order, called Limit Maker on some Binance surfaces, changes this beh
 ## Current conclusion
 
 No edge has been proven. The four-venue bounded public collector is
-deployed and healthy in its bounded 72-hour validation. Commit `0e6f419`
-loaded the reviewed five-minute Binance and Bybit silence bounds, confirmed
-by its runtime configuration hash. The next gate is completing the 48/72-hour
-storage, coverage, reconnect, and resource measurements.
+deployed and remained healthy beyond its bounded 72-hour validation gate.
+The full immutable subset currently available locally passes integrity
+verification. The next gate is to deploy the corrected Coinbase continuity
+contract, close and pull the existing run, audit that final immutable
+dataset, and then make an explicit retention or fresh-window decision.
 Deterministic no-look-ahead opportunity replay remains a later gate.

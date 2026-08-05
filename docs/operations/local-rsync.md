@@ -94,8 +94,10 @@ subsequent retry.
 
 Files ending in `.jsonl.open` are live, mutable journal parts and may end
 with a partial line if they change during transfer. Research and replay
-should consume closed `.jsonl` files only after their corresponding
-`.meta.json` files are present and verified.
+should consume only closed `.jsonl` or verified `.jsonl.gz` files after
+their `.jsonl.meta.json` source metadata is present and verified. A stored
+gzip additionally requires matching `.jsonl.gz.meta.json` compression
+metadata.
 
 When a later pull receives a closed `.jsonl` file, the script removes only
 the obsolete local `.jsonl.open` file with the exact same base name. It
@@ -122,12 +124,16 @@ npm run audit:data
 
 The command:
 
-- reads only closed `.jsonl` parts for analytical metrics;
+- reads only closed `.jsonl` or verified `.jsonl.gz` parts for analytical
+  metrics;
 - verifies the route, byte count, event count, timestamps, and SHA-256
   against each matching `.meta.json`;
+- verifies stored gzip content and its immutable compression metadata when
+  present;
 - reports mutable `.jsonl.open` parts separately, including partial tails;
-- reports coverage, event rates, source-to-receive latency, feed-state
-  reasons, ingest-sequence observations, and run-manifest coverage;
+- reports coverage, event rates, event-type-isolated source-to-receive
+  latency, feed-state and trade-continuity reasons, ingest-sequence
+  observations, and run-manifest coverage;
 - streams each closed part through gzip level 6 to measure a real
   compression ratio without creating or changing journal files.
 

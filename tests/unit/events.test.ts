@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   bookDeltaEventSchema,
   normalizedEventSchema,
-  publicRailStatusEventSchema
+  publicRailStatusEventSchema,
+  tradeContinuityEventSchema
 } from "../../src/collector/schema/events.js";
 import { makeTradeEvent } from "../fixtures/events.js";
 
@@ -28,6 +29,31 @@ describe("normalized event schemas", () => {
     });
     expect(event.sourceTimestampMs).toBeGreaterThan(
       event.receivedTimestampMs
+    );
+  });
+
+  it("records structured trade-continuity evidence", () => {
+    const trade = makeTradeEvent();
+    const continuity = {
+      ...trade,
+      eventType: "trade_continuity",
+      payload: {
+        messageType: "update",
+        previousTradeId: "100",
+        firstObservedTradeId: "102",
+        lastObservedTradeId: "103",
+        firstAcceptedTradeId: "102",
+        lastAcceptedTradeId: "103",
+        acceptedTradeCount: 2,
+        overlapTradeCount: 0,
+        duplicateTradeCount: 0,
+        nonAdjacentIdObserved: true,
+        observedAtMs: trade.receivedTimestampMs
+      }
+    };
+
+    expect(tradeContinuityEventSchema.parse(continuity)).toEqual(
+      continuity
     );
   });
 

@@ -37,6 +37,17 @@ const railStatusSchema = z.enum([
   "unknown"
 ]);
 
+export const normalizedEventTypeSchema = z.enum([
+  "instrument",
+  "book_checkpoint",
+  "book_delta",
+  "trade",
+  "trade_continuity",
+  "market_status",
+  "feed_status",
+  "public_rail_status"
+]);
+
 const commonEnvelopeShape = {
   schemaVersion: schemaVersionSchema,
   venue: venueSchema,
@@ -131,6 +142,24 @@ export const tradeEventSchema = z.strictObject({
   })
 });
 
+export const tradeContinuityEventSchema = z.strictObject({
+  ...commonEnvelopeShape,
+  eventType: z.literal("trade_continuity"),
+  payload: z.strictObject({
+    messageType: z.enum(["snapshot", "update"]),
+    previousTradeId: z.string().min(1).max(256).nullable(),
+    firstObservedTradeId: z.string().min(1).max(256),
+    lastObservedTradeId: z.string().min(1).max(256),
+    firstAcceptedTradeId: z.string().min(1).max(256).nullable(),
+    lastAcceptedTradeId: z.string().min(1).max(256).nullable(),
+    acceptedTradeCount: nonNegativeSafeIntegerSchema,
+    overlapTradeCount: nonNegativeSafeIntegerSchema,
+    duplicateTradeCount: nonNegativeSafeIntegerSchema,
+    nonAdjacentIdObserved: z.boolean(),
+    observedAtMs: utcEpochMillisecondsSchema
+  })
+});
+
 export const marketStatusEventSchema = z.strictObject({
   ...commonEnvelopeShape,
   eventType: z.literal("market_status"),
@@ -179,6 +208,7 @@ export const normalizedEventSchema = z.discriminatedUnion("eventType", [
   bookCheckpointEventSchema,
   bookDeltaEventSchema,
   tradeEventSchema,
+  tradeContinuityEventSchema,
   marketStatusEventSchema,
   feedStatusEventSchema,
   publicRailStatusEventSchema
