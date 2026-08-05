@@ -17,6 +17,10 @@ journal, health, or storage failure.
 A conventional FX adapter, shadow decisions, and execution remain
 unimplemented. No authenticated client or trading path exists.
 
+The first checkpoint and maker trade-through screens classify the
+observed gross margin as thin. Their method and go/no-go interpretation
+are in `research/initial-edge-screen-2026-08-06.md`.
+
 ## Repository map
 
 ```text
@@ -96,3 +100,21 @@ npm run build
 ```
 
 The default tests require no credentials or network access.
+
+After building, reproduce the initial receive-time checkpoint screen:
+
+```text
+npm run analyze:checkpoints -- \
+  --data-root <verified-data-root> \
+  --output <report-path> \
+  --run-id <collector-run-id>
+```
+
+The focused maker trade-through screen uses the same verified archive:
+
+```text
+npm run analyze:trade-through -- \
+  --data-root <verified-data-root> \
+  --output <report-path> \
+  --run-id <collector-run-id>
+```

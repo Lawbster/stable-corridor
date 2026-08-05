@@ -19,6 +19,8 @@
     "node": ">=24.11.0 <25"
   },
   "scripts": {
+    "analyze:checkpoints": "node dist/replay/checkpoint-scan-entrypoint.js",
+    "analyze:trade-through": "node dist/replay/trade-through-scan-entrypoint.js",
     "audit:data": "node scripts/audit-dataset.mjs",
     "build": "tsc -p tsconfig.build.json",
     "check": "npm run format:check && npm run lint && npm run test && npm run build",

@@ -281,14 +281,43 @@ A market order is always a taker order. A normal limit order can also be a taker
 
 A Post Only order, called Limit Maker on some Binance surfaces, changes this behavior: the exchange may place it on the book as maker liquidity, but must reject it if it would execute immediately. This prevents an intended maker order from unexpectedly paying taker fees when the book changes between decision and arrival.
 
+## Initial economic screen
+
+On 2026-08-06, the first reproducible no-look-ahead screen processed the
+clean 56.1-hour manifest-backed run from verified gzip journals. An
+independent Binance/Bybit/Kraken reference composite produced 2,670
+high-confidence Coinbase `EURC-USDC` checkpoint samples.
+
+The median absolute Coinbase mid dislocation was `0.43 bp`, P95 was
+`1.73 bp`, P99 was `2.60 bp`, and the maximum was `4.33 bp`. Only 70
+samples, `2.62%`, reached 2 bp; 17 reached 3 bp; none reached 5 bp. The
+result was stable under 1, 2, and 3 bp reference-consensus filters and
+identical when reading retained source rather than gzip.
+
+Those observations formed 62 distinct 2+ bp episodes. Within 60 seconds,
+43 saw correctly sided aggressive trades at or through the hypothetical
+maker price, but only 14 cleared the initially visible queue and only 13
+cleared that queue plus a 100 EURC order. The 1,000 EURC sensitivity had
+eight proxy full fills and approximately `1.25 USDC/day` gross
+mark-to-fair, falling to approximately `0.47 USDC/day` after a simple
+2 bp buffer and before exit, inventory, or rebalance costs. No 10,000
+EURC order cleared in the proxy.
+
+This is evidence of thin gross margins, not a profitability result. The
+only justified next build is a focused delta-aware replay of those 62
+episodes with queue evolution, markouts, exits, finite inventory, and
+explicit costs. The full method and result are in
+`research/initial-edge-screen-2026-08-06.md`.
+
 ## Current conclusion
 
 No edge has been proven. The four-venue bounded public collector is
 deployed and completed its bounded 72-hour validation gate. The final
 immutable pilot and all 600 compressed representations pass integrity and
 provenance checks, while the corrected Coinbase run is collecting under a
-distinct run ID. Preserve the local source mirror for replay and
-operational evidence. The next storage action is a read-only VPS
-reclamation plan and review, not deletion; a closed corrected window is
-still required. Deterministic no-look-ahead opportunity replay remains a
-later gate.
+distinct run ID. The reviewed VPS reclamation completed and the archive
+passes as 600 gzip-only parts while the local source mirror remains
+available. Initial checkpoint and trade-through screens point to marginal
+economics. Do not expand into general strategy or execution
+infrastructure; complete one focused full-resolution episode replay and
+stop if realistic completed-cycle economics are not positive.

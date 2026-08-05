@@ -64,6 +64,25 @@ export {
   type ReplayPosition
 } from "./replay/order.js";
 export {
+  discoverClosedJournalParts,
+  readClosedJournalPart,
+  readMergedJournalParts,
+  type ClosedJournalPart,
+  type DiscoverClosedJournalPartsOptions,
+  type JournalRepresentation
+} from "./replay/journal-reader.js";
+export {
+  scanCorridorCheckpoints,
+  type CorridorCheckpointScanOptions,
+  type CorridorCheckpointScanReport
+} from "./opportunity/checkpoint-scan.js";
+export {
+  scanTradeThrough,
+  type TradeThroughCandidate,
+  type TradeThroughScanOptions,
+  type TradeThroughScanReport
+} from "./opportunity/trade-through-scan.js";
+export {
   CoinbasePublicAdapter,
   type CoinbaseAdapterDiagnostics,
   type CoinbaseProductDiagnostics,
