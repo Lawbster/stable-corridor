@@ -113,6 +113,26 @@ operator review. It does not prune source journals; the exact format and
 bounded trial are documented in
 `docs/operations/journal-compression.md`.
 
+After the intentional stop, all 78 open journals from the principal run
+were finalized. The subsequent local audit verified 600 of 600 closed
+parts containing `11,176,976` events and `6,776,183,693` logical bytes
+across approximately `78.21` elapsed hours. The closing run manifest
+reported exit code zero and zero journal errors.
+
+The corrected collector restarted on commit `7533605` with all 13 feeds
+healthy. At its first health observation the VPS data root used
+`6,784,508,324` bytes, leaving `3,952,909,916` bytes, approximately
+`3.68 GiB`, under the 10 GiB ceiling. At the measured uncompressed rate
+that is approximately 1.9 days of headroom. The filesystem still had
+approximately `50.08 GiB` free, about `10.08 GiB` above the configured
+reserve.
+
+The historical and corrected windows are separable by collector run ID,
+so a wipe is not required for research integrity. The next storage gate
+is one source-preserving compressed-part trial followed by a local audit.
+Source pruning or a full VPS reset remains a separate destructive
+decision.
+
 ## Reserved PM2 names
 
 ```text

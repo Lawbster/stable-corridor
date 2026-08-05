@@ -234,6 +234,31 @@ integrity boundary, deduplicates overlaps, retains non-adjacent IDs, and
 persists structured `trade_continuity` evidence. Conflicting duplicate
 details remain fail-closed.
 
+The final post-stop pull closed all 78 previously mutable journals and
+removed their obsolete local `.open` copies. The full mirror covers
+approximately `78.21` elapsed hours across the pilot runs. All 600 closed
+parts passed route, metadata, event-count, timestamp, and SHA-256 checks.
+They contain `11,176,976` events and `6,776,183,693` logical bytes,
+including `10,086,229` book deltas and `1,024,393` trades. Every observed
+run has zero duplicate ingest sequences and zero unobserved sequences
+within its closed range.
+
+The principal manifest-backed run
+`f8143606-623e-49bc-a530-0841d36250cf` lasted approximately `56.13` hours
+and closed intentionally with exit code zero, zero journal errors, and
+`signal_sigint`. The replacement run
+`7fb77d97-1c3e-4da2-9c60-0cb4627165e5` started on commit `7533605` with
+the same reviewed configuration hash. Its first health observation
+reported all 13 feeds healthy, no reason codes, zero gaps and reconnects,
+zero journal errors, zero event-loop lag, and approximately `229 MiB` RSS.
+
+No `trade_continuity` event appears in the immutable audit yet because
+the corrected run had only new mutable open journals at pull time and no
+observed anomaly had created that stream. This is expected rather than
+evidence that the new rule is untested in production. The new run ID
+already provides a clean logical analysis boundary, so the historical
+pilot need not be wiped merely to separate corrected data.
+
 ## Maker versus taker safeguard
 
 A market order is always a taker order. A normal limit order can also be a taker if its price immediately matches the opposite side of the book.
@@ -243,9 +268,10 @@ A Post Only order, called Limit Maker on some Binance surfaces, changes this beh
 ## Current conclusion
 
 No edge has been proven. The four-venue bounded public collector is
-deployed and remained healthy beyond its bounded 72-hour validation gate.
-The full immutable subset currently available locally passes integrity
-verification. The next gate is to deploy the corrected Coinbase continuity
-contract, close and pull the existing run, audit that final immutable
-dataset, and then make an explicit retention or fresh-window decision.
+deployed and completed its bounded 72-hour validation gate. The final
+immutable pilot passes integrity and provenance checks, while the
+corrected Coinbase run is collecting under a distinct run ID. Preserve
+the old window for replay and operational evidence; next test one
+source-preserving compressed part and collect a closed corrected window
+before considering any source pruning or VPS wipe.
 Deterministic no-look-ahead opportunity replay remains a later gate.
