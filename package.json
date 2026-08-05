@@ -26,6 +26,7 @@
     "compress:data": "node dist/collector/compress-entrypoint.js",
     "format:check": "node scripts/check-format.mjs",
     "lint": "npm run typecheck && npm run check:boundaries",
+    "reclaim:data": "node dist/collector/reclaim-entrypoint.js",
     "start:collector": "node dist/collector/entrypoint.js",
     "test": "vitest run",
     "test:integration": "vitest run --project integration",

@@ -71,8 +71,9 @@ are in `docs/operations/collector-pilot.md`.
 The pull-only WSL runtime mirror is documented in
 `docs/operations/local-rsync.md`.
 
-Verified, source-preserving compression of immutable closed journals is
-documented in `docs/operations/journal-compression.md`.
+Verified compression and the manual, checksum-gated source-reclamation
+workflow for immutable closed journals are documented in
+`docs/operations/journal-compression.md`.
 
 ## Development gates
 

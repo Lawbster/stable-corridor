@@ -78,11 +78,10 @@ Hetzner Cloud Volumes are replicated storage but are not included in server back
 
 No volume should be purchased or attached before the measured pilot demonstrates the need.
 
-The deployed pilot currently retains normalized journals uncompressed.
-It records checksummed metadata when a part closes and stops at the storage
-gate. The first 72-hour measurement must therefore report uncompressed
-growth; compression remains a separately reviewed optimization after the
-observed event rate and CPU budget are known.
+The collector writes normalized journals uncompressed and records
+checksummed metadata when a part closes. Compression and source
+reclamation are separate manual operator commands; neither runs in the
+collector process or on a schedule.
 
 The first approximately 20-hour sample measured `1.81 GiB/day` of
 uncompressed Stable Corridor data. Collector RSS was approximately
@@ -91,12 +90,10 @@ collector accounted for approximately `11 MiB` of swap. Root free space
 remained above the configured 40 GiB reserve. These were interim
 measurements before the completed 72-hour capacity observation below.
 
-The corresponding local closed-journal audit verified 304 of 304 parts,
+The corresponding early local closed-journal audit verified 304 of 304 parts,
 covering `2,803,222` events and `1,717,518,706` bytes. Gzip level 6 reduced
-those immutable bytes to `95,924,798`, a measured `5.5851%` ratio. This is
-an offline sizing result only: the deployed collector still writes and
-retains uncompressed journals, and no automatic compression or source
-deletion is authorized during the pilot.
+those immutable bytes to `95,924,798`, a measured `5.5851%` ratio. This
+was the first offline sizing result.
 
 At approximately 77.3 elapsed hours, the data root held
 `6,696,775,793` bytes and was growing at approximately `1.94 GiB/day`.
@@ -108,9 +105,8 @@ bytes. Another `2,058,657,180` bytes remained in live open parts.
 Gzip level 6 reduced the closed bytes to `257,717,238`, a measured
 `5.5557%` ratio and `94.4443%` saving. Without compression, the 10 GiB
 collector ceiling was projected to arrive in approximately 1.94 days.
-A non-destructive verified compressor is therefore implemented for
-operator review. It does not prune source journals; the exact format and
-bounded trial are documented in
+A non-destructive verified compressor was therefore implemented. Its
+format and operator workflow are documented in
 `docs/operations/journal-compression.md`.
 
 After the intentional stop, all 78 open journals from the principal run
@@ -128,10 +124,20 @@ approximately `50.08 GiB` free, about `10.08 GiB` above the configured
 reserve.
 
 The historical and corrected windows are separable by collector run ID,
-so a wipe is not required for research integrity. The next storage gate
-is one source-preserving compressed-part trial followed by a local audit.
-Source pruning or a full VPS reset remains a separate destructive
-decision.
+so a wipe is not required for research integrity. All 600 finalized pilot
+parts were later compressed and verified on the VPS at low priority.
+Their `6,776,183,693` source bytes produced `375,093,132` gzip bytes, a
+`5.5355%` ratio, in approximately `67.652` seconds. A subsequent local
+pull and compression-aware audit verified every gzip while retaining all
+600 source journals.
+
+A checksum-gated reclamation tool is implemented but has not been applied
+on the VPS. Its default mode is read-only with respect to the data root:
+it verifies source, source metadata, gzip, and compression metadata and
+writes an exact plan under the separate state root. Applying a reviewed
+plan is an explicit destructive operation that removes only its listed
+`.jsonl` sources. It remains a separate operator approval and never runs
+inside the collector.
 
 ## Reserved PM2 names
 

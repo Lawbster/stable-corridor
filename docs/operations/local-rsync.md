@@ -103,6 +103,13 @@ When a later pull receives a closed `.jsonl` file, the script removes only
 the obsolete local `.jsonl.open` file with the exact same base name. It
 does not apply broad local deletion or mirror remote retention deletions.
 
+The data rsync deliberately does not use `--delete`. If a reviewed VPS
+reclamation later removes a closed `.jsonl` source, subsequent pulls keep
+the already verified local `.jsonl` copy while continuing to receive new
+gzip and metadata artifacts. This behavior is intentional: reclaiming VPS
+capacity does not shrink the local research mirror. Complete and audit a
+local pull before approving any remote source reclamation.
+
 The local directories are excluded by `.gitignore`. Before the initial
 full pull, confirm that the Windows drive has enough free space:
 

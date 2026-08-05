@@ -259,6 +259,22 @@ evidence that the new rule is untested in production. The new run ID
 already provides a clean logical analysis boundary, so the historical
 pilot need not be wiped merely to separate corrected data.
 
+All 600 finalized pilot parts were subsequently compressed and verified
+on the VPS at low scheduling priority. Their `6,776,183,693` source bytes
+produced `375,093,132` gzip bytes, a `5.5355%` ratio and `94.4645%`
+space saving. The bulk pass completed in approximately `67.652` seconds.
+A later local pull verified all 600 gzip artifacts against their source
+metadata while retaining all 600 source journals.
+
+This establishes both fidelity and practical shared-host cost for gzip
+level 6. It does not itself delete data. A manual reclamation workflow now
+creates a deterministic plan containing every exact source and companion
+path, byte count, and SHA-256, and binds it with a plan checksum. Apply
+mode requires that checksum, verifies the complete plan before any
+deletion, re-verifies each part immediately before unlinking only its
+`.jsonl` source, and leaves source metadata, gzip data, and compression
+metadata intact. No plan has yet been generated or applied on the VPS.
+
 ## Maker versus taker safeguard
 
 A market order is always a taker order. A normal limit order can also be a taker if its price immediately matches the opposite side of the book.
@@ -269,9 +285,10 @@ A Post Only order, called Limit Maker on some Binance surfaces, changes this beh
 
 No edge has been proven. The four-venue bounded public collector is
 deployed and completed its bounded 72-hour validation gate. The final
-immutable pilot passes integrity and provenance checks, while the
-corrected Coinbase run is collecting under a distinct run ID. Preserve
-the old window for replay and operational evidence; next test one
-source-preserving compressed part and collect a closed corrected window
-before considering any source pruning or VPS wipe.
-Deterministic no-look-ahead opportunity replay remains a later gate.
+immutable pilot and all 600 compressed representations pass integrity and
+provenance checks, while the corrected Coinbase run is collecting under a
+distinct run ID. Preserve the local source mirror for replay and
+operational evidence. The next storage action is a read-only VPS
+reclamation plan and review, not deletion; a closed corrected window is
+still required. Deterministic no-look-ahead opportunity replay remains a
+later gate.

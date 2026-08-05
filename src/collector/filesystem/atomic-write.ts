@@ -9,7 +9,9 @@ import {
 import { basename, dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 
-async function syncDirectoryBestEffort(directory: string): Promise<void> {
+export async function syncDirectoryBestEffort(
+  directory: string
+): Promise<void> {
   if (process.platform === "win32") {
     return;
   }

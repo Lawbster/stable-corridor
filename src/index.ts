@@ -34,6 +34,21 @@ export {
   type JournalCompressionMetadata
 } from "./collector/journal/compression.js";
 export {
+  applyJournalSourceReclamationPlan,
+  createJournalSourceReclamationPlan,
+  journalSourceReclamationEntrySchema,
+  journalSourceReclamationPlanSchema,
+  journalSourceReclamationResultSchema,
+  writeJournalSourceReclamationPlan,
+  type ApplyJournalSourceReclamationPlanOptions,
+  type ApplyJournalSourceReclamationPlanResult,
+  type JournalSourceReclamationEntry,
+  type JournalSourceReclamationPlan,
+  type JournalSourceReclamationResult,
+  type PlanJournalSourceReclamationOptions,
+  type WriteJournalSourceReclamationPlanOptions
+} from "./collector/journal/reclamation.js";
+export {
   collectorHealthSchema,
   type CollectorHealth
 } from "./health/schema.js";
