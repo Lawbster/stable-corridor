@@ -27,6 +27,7 @@
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "compress:data": "node dist/collector/compress-entrypoint.js",
     "format:check": "node scripts/check-format.mjs",
+    "history:free": "node dist/historical/tardis-entrypoint.js",
     "lint": "npm run typecheck && npm run check:boundaries",
     "reclaim:data": "node dist/collector/reclaim-entrypoint.js",
     "start:collector": "node dist/collector/entrypoint.js",

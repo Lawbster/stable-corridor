@@ -17,9 +17,11 @@ journal, health, or storage failure.
 A conventional FX adapter, shadow decisions, and execution remain
 unimplemented. No authenticated client or trading path exists.
 
-The first checkpoint and maker trade-through screens classify the
-observed gross margin as thin. Their method and go/no-go interpretation
-are in `research/initial-edge-screen-2026-08-06.md`.
+The initial and free cross-regime checkpoint/trade-through screens now
+classify the current Coinbase maker corridor as an economic no-go. Their
+methods and interpretation are in
+`research/initial-edge-screen-2026-08-06.md` and
+`research/free-history-edge-screen-2026-08-06.md`.
 
 ## Repository map
 
@@ -100,6 +102,23 @@ npm run build
 ```
 
 The default tests require no credentials or network access.
+
+Free first-of-month historical samples can broaden the economic screen
+without an API key or paid subscription:
+
+```text
+npm run build
+npm run history:free -- \
+  --cache-root ./historical-cache \
+  --data-root ./historical-data \
+  --from-month 2024-09 \
+  --to-month 2026-08
+```
+
+The importer is restricted to the five public datasets used by the
+current corridor and rejects non-first-of-month dates. See
+`docs/operations/free-historical-data.md` for integrity checks, analysis
+commands, and vendor-timestamp limitations.
 
 After building, reproduce the initial receive-time checkpoint screen:
 

@@ -309,6 +309,31 @@ episodes with queue evolution, markouts, exits, finite inventory, and
 explicit costs. The full method and result are in
 `research/initial-edge-screen-2026-08-06.md`.
 
+## Free cross-regime historical screen
+
+A follow-up no-auth import processed 24 free first-of-month days from
+2024-09 through 2026-08. The independently audited archive contains
+13,424,304 events across approximately 575 observed daily hours.
+
+The larger sample found occasional material checkpoints: absolute
+dislocation had a `0.60 bp` median, `1.93 bp` P95, `2.90 bp` P99, and
+`7.32 bp` maximum. Of 8,255 strict-consensus samples, 377 reached 2 bp,
+65 reached 3 bp, and seven reached 5 bp.
+
+Those observations formed 240 episodes. Within 60 seconds, 168 saw a
+correctly sided trade at or through the hypothetical maker price, but
+only 22 cleared the visible queue and only 20 cleared the queue plus 100
+EURC. At 1,000 EURC, nine proxy fills produced approximately
+`0.15 USDC/day` gross mark-to-fair and `0.06 USDC/day` after a simple
+2 bp buffer. The only 5,000/10,000 EURC clearance was one event on
+2025-01-01.
+
+This broader evidence changes the checkpoint classification but not the
+economic decision. Material-looking percentage differences exist
+occasionally; scalable completed-cycle proceeds do not. The current
+Coinbase maker corridor is a no-go. Full details are in
+`research/free-history-edge-screen-2026-08-06.md`.
+
 ## Current conclusion
 
 No edge has been proven. The four-venue bounded public collector is
@@ -317,7 +342,9 @@ immutable pilot and all 600 compressed representations pass integrity and
 provenance checks, while the corrected Coinbase run is collecting under a
 distinct run ID. The reviewed VPS reclamation completed and the archive
 passes as 600 gzip-only parts while the local source mirror remains
-available. Initial checkpoint and trade-through screens point to marginal
-economics. Do not expand into general strategy or execution
-infrastructure; complete one focused full-resolution episode replay and
-stop if realistic completed-cycle economics are not positive.
+available. The initial and free cross-regime screens now support an
+economic no-go for the current thesis. Do not expand into general
+strategy or execution infrastructure. One or two more live weeks may
+confirm the current regime, but a positive decision would require
+materially different fees, access, or market structure rather than more
+of the same engineering.

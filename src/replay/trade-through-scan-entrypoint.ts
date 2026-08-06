@@ -14,12 +14,14 @@ interface Arguments {
   readonly dataRoot: string;
   readonly outputPath: string;
   readonly collectorRunId: string;
+  readonly targetSampleIntervalMs: number;
 }
 
 function parseArguments(arguments_: readonly string[]): Arguments {
   let dataRoot: string | undefined;
   let outputPath: string | undefined;
   let collectorRunId: string | undefined;
+  let targetSampleIntervalMs = 0;
   for (let index = 0; index < arguments_.length; index += 1) {
     const argument = arguments_[index];
     const value = arguments_[index + 1];
@@ -31,6 +33,12 @@ function parseArguments(arguments_: readonly string[]): Arguments {
       index += 1;
     } else if (argument === "--run-id" && value !== undefined) {
       collectorRunId = value;
+      index += 1;
+    } else if (
+      argument === "--target-sample-interval-ms" &&
+      value !== undefined
+    ) {
+      targetSampleIntervalMs = Number(value);
       index += 1;
     } else {
       throw new Error(`Unknown or incomplete argument: ${argument}`);
@@ -44,10 +52,24 @@ function parseArguments(arguments_: readonly string[]): Arguments {
     throw new Error(
       "Usage: node dist/replay/trade-through-scan-entrypoint.js " +
         "--data-root <absolute-path> --output <absolute-path> " +
-        "--run-id <collector-run-id>"
+        "--run-id <collector-run-id> " +
+        "[--target-sample-interval-ms <milliseconds>]"
     );
   }
-  return { dataRoot, outputPath, collectorRunId };
+  if (
+    !Number.isSafeInteger(targetSampleIntervalMs) ||
+    targetSampleIntervalMs < 0
+  ) {
+    throw new Error(
+      `Invalid target sample interval: ${targetSampleIntervalMs}`
+    );
+  }
+  return {
+    dataRoot,
+    outputPath,
+    collectorRunId,
+    targetSampleIntervalMs
+  };
 }
 
 const arguments_ = parseArguments(process.argv.slice(2));
@@ -58,7 +80,10 @@ const parts = await discoverClosedJournalParts({
 });
 const report = await scanTradeThrough(
   readMergedJournalParts(parts),
-  { collectorRunId: arguments_.collectorRunId }
+  {
+    collectorRunId: arguments_.collectorRunId,
+    targetSampleIntervalMs: arguments_.targetSampleIntervalMs
+  }
 );
 await writeFileAtomic(arguments_.outputPath, canonicalJsonLine(report));
 console.log(

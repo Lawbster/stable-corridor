@@ -16,6 +16,7 @@ export interface TradeThroughScanOptions {
   readonly acknowledgementLatencyMs?: number;
   readonly horizonMs?: number;
   readonly orderQuantity?: number;
+  readonly targetSampleIntervalMs?: number;
 }
 
 export interface TradeThroughCandidate {
@@ -70,6 +71,7 @@ export interface TradeThroughScanReport {
     readonly acknowledgementLatencyMs: number;
     readonly horizonMs: number;
     readonly orderQuantity: number;
+    readonly targetSampleIntervalMs: number;
   };
   readonly signals: {
     readonly total: number;
@@ -77,6 +79,8 @@ export interface TradeThroughScanReport {
     readonly sell: number;
   };
   readonly observationElapsedHours: number | null;
+  readonly calendarElapsedHours: number | null;
+  readonly observedUtcDates: number;
   readonly horizons: Readonly<Record<string, HorizonSummary>>;
   readonly qualifyingTradeToVisibleQueueRatio: Distribution;
   readonly sizeSensitivity: readonly SizeSensitivity[];
@@ -108,6 +112,11 @@ interface PriorSignalState {
   readonly qualified: boolean;
   readonly receivedTimestampMs: number;
   readonly side?: "buy" | "sell";
+}
+
+interface ObservationRange {
+  first: number;
+  last: number;
 }
 
 const targetKey = "coinbase|EURC-USDC";
@@ -280,6 +289,20 @@ function sizeSensitivity(
   );
 }
 
+function summedObservationHours(
+  ranges: ReadonlyMap<string, ObservationRange>
+): number | null {
+  if (ranges.size === 0) {
+    return null;
+  }
+  return (
+    [...ranges.values()].reduce(
+      (total, range) => total + range.last - range.first,
+      0
+    ) / 3_600_000
+  );
+}
+
 export async function scanTradeThrough(
   positions: AsyncIterable<ReplayPosition>,
   options: TradeThroughScanOptions
@@ -293,12 +316,15 @@ export async function scanTradeThrough(
     options.acknowledgementLatencyMs ?? 250;
   const horizonMs = options.horizonMs ?? 60_000;
   const orderQuantity = options.orderQuantity ?? 100;
+  const targetSampleIntervalMs =
+    options.targetSampleIntervalMs ?? 0;
   for (const [label, value] of [
     ["freshnessMs", freshnessMs],
     ["minimumDislocationBps", minimumDislocationBps],
     ["acknowledgementLatencyMs", acknowledgementLatencyMs],
     ["horizonMs", horizonMs],
-    ["orderQuantity", orderQuantity]
+    ["orderQuantity", orderQuantity],
+    ["targetSampleIntervalMs", targetSampleIntervalMs]
   ] as const) {
     if (!Number.isFinite(value) || value < 0) {
       throw new Error(`Invalid ${label}: ${value}`);
@@ -313,6 +339,8 @@ export async function scanTradeThrough(
   };
   let firstTargetTimestampMs: number | undefined;
   let lastTargetTimestampMs: number | undefined;
+  let lastTargetSampleTimestampMs: number | undefined;
+  const observationRanges = new Map<string, ObservationRange>();
 
   for await (const { event } of positions) {
     if (event.collectorRunId !== options.collectorRunId) {
@@ -324,8 +352,29 @@ export async function scanTradeThrough(
       if (key !== targetKey) {
         continue;
       }
+      if (
+        lastTargetSampleTimestampMs !== undefined &&
+        event.receivedTimestampMs - lastTargetSampleTimestampMs <
+          targetSampleIntervalMs
+      ) {
+        continue;
+      }
+      lastTargetSampleTimestampMs = event.receivedTimestampMs;
       firstTargetTimestampMs ??= event.receivedTimestampMs;
       lastTargetTimestampMs = event.receivedTimestampMs;
+      const utcDate = new Date(event.receivedTimestampMs)
+        .toISOString()
+        .slice(0, 10);
+      const range = observationRanges.get(utcDate);
+      if (range === undefined) {
+        observationRanges.set(utcDate, {
+          first: event.receivedTimestampMs,
+          last: event.receivedTimestampMs
+        });
+      } else {
+        range.first = Math.min(range.first, event.receivedTimestampMs);
+        range.last = Math.max(range.last, event.receivedTimestampMs);
+      }
 
       const references: number[] = [];
       let referencesFresh = true;
@@ -452,12 +501,14 @@ export async function scanTradeThrough(
       candidate.qualifyingTradeQuantity /
       candidate.visibleQueueQuantity
   );
-  const observationElapsedHours =
+  const calendarElapsedHours =
     firstTargetTimestampMs === undefined ||
     lastTargetTimestampMs === undefined
       ? null
       : (lastTargetTimestampMs - firstTargetTimestampMs) /
         3_600_000;
+  const observationElapsedHours =
+    summedObservationHours(observationRanges);
   return {
     schemaVersion: 1,
     reportType: "stable_corridor_trade_through_screen",
@@ -469,7 +520,8 @@ export async function scanTradeThrough(
       minimumDislocationBps,
       acknowledgementLatencyMs,
       horizonMs,
-      orderQuantity
+      orderQuantity,
+      targetSampleIntervalMs
     },
     signals: {
       total: candidates.length,
@@ -481,6 +533,8 @@ export async function scanTradeThrough(
       ).length
     },
     observationElapsedHours,
+    calendarElapsedHours,
+    observedUtcDates: observationRanges.size,
     horizons: Object.fromEntries(
       [5_000, 30_000, horizonMs].map((value) => [
         `${value}ms`,

@@ -202,4 +202,37 @@ describe("checkpoint corridor edge screen", () => {
     expect(dispersed.observations.eligibleTargetSamples).toBe(1);
     expect(dispersed.observations.highConfidenceSamples).toBe(0);
   });
+
+  it("supports a bounded target sampling cadence", async () => {
+    const timestampMs = Date.UTC(2026, 7, 5, 12, 0, 0);
+    const target = (
+      offsetMs: number,
+      ingestSequence: number
+    ): ReplayPosition =>
+      position(
+        {
+          venue: "coinbase",
+          product: "EURC-USDC",
+          receivedTimestampMs: timestampMs + offsetMs,
+          ingestSequence,
+          bidPrice: "1.1494",
+          askPrice: "1.1498"
+        },
+        ingestSequence
+      );
+    const report = await scanCorridorCheckpoints(
+      positions([
+        ...references(timestampMs),
+        target(3, 4),
+        target(30_003, 5),
+        target(60_003, 6)
+      ]),
+      {
+        collectorRunId,
+        targetSampleIntervalMs: 60_000
+      }
+    );
+    expect(report.targetSampleIntervalMs).toBe(60_000);
+    expect(report.observations.eligibleTargetSamples).toBe(2);
+  });
 });

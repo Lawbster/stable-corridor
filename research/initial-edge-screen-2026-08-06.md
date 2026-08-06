@@ -7,6 +7,11 @@
 **Conclusion:** gross margins appear thin; execution viability is not
 established
 
+**Follow-up:** the wider free cross-regime screen in
+`research/free-history-edge-screen-2026-08-06.md` found occasional
+larger dislocations but confirmed an economic no-go after trade-through
+and size screening.
+
 ## Purpose
 
 This is the first economic screen of the verified pilot dataset. Its job

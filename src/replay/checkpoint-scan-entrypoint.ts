@@ -17,6 +17,7 @@ interface Arguments {
   readonly collectorRunId: string;
   readonly freshnessMs: number;
   readonly maxReferenceDispersionBps: number;
+  readonly targetSampleIntervalMs: number;
   readonly preferRepresentation: JournalRepresentation;
 }
 
@@ -26,6 +27,7 @@ function usage(): string {
     "--data-root <absolute-path> --output <absolute-path> " +
     "--run-id <collector-run-id> [--freshness-ms <milliseconds>] " +
     "[--max-reference-dispersion-bps <bps>] [--prefer-source]"
+    + " [--target-sample-interval-ms <milliseconds>]"
   );
 }
 
@@ -35,6 +37,7 @@ function parseArguments(arguments_: readonly string[]): Arguments {
   let collectorRunId: string | undefined;
   let freshnessMs = 90_000;
   let maxReferenceDispersionBps = 2;
+  let targetSampleIntervalMs = 0;
   let preferRepresentation: JournalRepresentation = "gzip";
 
   for (let index = 0; index < arguments_.length; index += 1) {
@@ -61,6 +64,12 @@ function parseArguments(arguments_: readonly string[]): Arguments {
     ) {
       maxReferenceDispersionBps = Number(value);
       index += 1;
+    } else if (
+      argument === "--target-sample-interval-ms" &&
+      value !== undefined
+    ) {
+      targetSampleIntervalMs = Number(value);
+      index += 1;
     } else if (argument === "--prefer-source") {
       preferRepresentation = "source";
     } else {
@@ -85,12 +94,21 @@ function parseArguments(arguments_: readonly string[]): Arguments {
       `Invalid reference dispersion: ${maxReferenceDispersionBps}`
     );
   }
+  if (
+    !Number.isSafeInteger(targetSampleIntervalMs) ||
+    targetSampleIntervalMs < 0
+  ) {
+    throw new Error(
+      `Invalid target sample interval: ${targetSampleIntervalMs}`
+    );
+  }
   return {
     dataRoot,
     outputPath,
     collectorRunId,
     freshnessMs,
     maxReferenceDispersionBps,
+    targetSampleIntervalMs,
     preferRepresentation
   };
 }
@@ -107,7 +125,8 @@ const report = await scanCorridorCheckpoints(
     collectorRunId: arguments_.collectorRunId,
     freshnessMs: arguments_.freshnessMs,
     maxReferenceDispersionBps:
-      arguments_.maxReferenceDispersionBps
+      arguments_.maxReferenceDispersionBps,
+    targetSampleIntervalMs: arguments_.targetSampleIntervalMs
   }
 );
 await writeFileAtomic(arguments_.outputPath, canonicalJsonLine(report));

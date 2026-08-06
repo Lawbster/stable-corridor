@@ -12,6 +12,7 @@ export interface CorridorCheckpointScanOptions {
   readonly collectorRunId: string;
   readonly freshnessMs?: number;
   readonly maxReferenceDispersionBps?: number;
+  readonly targetSampleIntervalMs?: number;
 }
 
 interface CheckpointSample {
@@ -66,6 +67,7 @@ export interface CorridorCheckpointScanReport {
   ];
   readonly freshnessMs: number;
   readonly maxReferenceDispersionBps: number;
+  readonly targetSampleIntervalMs: number;
   readonly observations: {
     readonly totalCheckpointEvents: number;
     readonly eligibleTargetSamples: number;
@@ -73,6 +75,8 @@ export interface CorridorCheckpointScanReport {
     readonly firstReceivedTimestampMs: number | null;
     readonly lastReceivedTimestampMs: number | null;
     readonly elapsedHours: number | null;
+    readonly observedUtcDates: number;
+    readonly summedDailyObservationHours: number | null;
     readonly targetCheapSamples: number;
     readonly targetRichSamples: number;
   };
@@ -264,6 +268,36 @@ function classify(
   return "material_dislocation_requires_fill_replay";
 }
 
+function summedDailyObservationHours(
+  samples: readonly CheckpointSample[]
+): number | null {
+  if (samples.length === 0) {
+    return null;
+  }
+  const ranges = new Map<
+    string,
+    { first: number; last: number }
+  >();
+  for (const sample of samples) {
+    const range = ranges.get(sample.utcDate);
+    if (range === undefined) {
+      ranges.set(sample.utcDate, {
+        first: sample.receivedTimestampMs,
+        last: sample.receivedTimestampMs
+      });
+    } else {
+      range.first = Math.min(range.first, sample.receivedTimestampMs);
+      range.last = Math.max(range.last, sample.receivedTimestampMs);
+    }
+  }
+  return (
+    [...ranges.values()].reduce(
+      (total, range) => total + range.last - range.first,
+      0
+    ) / 3_600_000
+  );
+}
+
 export async function scanCorridorCheckpoints(
   positions: AsyncIterable<ReplayPosition>,
   options: CorridorCheckpointScanOptions
@@ -271,9 +305,20 @@ export async function scanCorridorCheckpoints(
   const freshnessMs = options.freshnessMs ?? 90_000;
   const maxReferenceDispersionBps =
     options.maxReferenceDispersionBps ?? 2;
+  const targetSampleIntervalMs =
+    options.targetSampleIntervalMs ?? 0;
+  if (
+    !Number.isSafeInteger(targetSampleIntervalMs) ||
+    targetSampleIntervalMs < 0
+  ) {
+    throw new Error(
+      `Invalid target sample interval: ${targetSampleIntervalMs}`
+    );
+  }
   const latest = new Map<string, BookCheckpointEvent>();
   const samples: CheckpointSample[] = [];
   let totalCheckpointEvents = 0;
+  let lastTargetSampleTimestampMs: number | undefined;
 
   for await (const { event } of positions) {
     if (
@@ -288,6 +333,14 @@ export async function scanCorridorCheckpoints(
     if (key !== targetKey) {
       continue;
     }
+    if (
+      lastTargetSampleTimestampMs !== undefined &&
+      event.receivedTimestampMs - lastTargetSampleTimestampMs <
+        targetSampleIntervalMs
+    ) {
+      continue;
+    }
+    lastTargetSampleTimestampMs = event.receivedTimestampMs;
 
     const references: number[] = [];
     let referencesFresh = true;
@@ -358,6 +411,7 @@ export async function scanCorridorCheckpoints(
     ],
     freshnessMs,
     maxReferenceDispersionBps,
+    targetSampleIntervalMs,
     observations: {
       totalCheckpointEvents,
       eligibleTargetSamples: samples.length,
@@ -368,6 +422,11 @@ export async function scanCorridorCheckpoints(
         first === undefined || last === undefined
           ? null
           : (last - first) / 3_600_000,
+      observedUtcDates: new Set(
+        samples.map((sample) => sample.utcDate)
+      ).size,
+      summedDailyObservationHours:
+        summedDailyObservationHours(samples),
       targetCheapSamples: highConfidenceSamples.filter(
         (sample) => sample.dislocationBps <= 0
       ).length,

@@ -16,6 +16,8 @@ data/
 state/
 incidents/
 logs/
+historical-cache/
+historical-data/
 *.log
 
 # Account evidence is deliberately kept outside the repository

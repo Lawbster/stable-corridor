@@ -83,6 +83,23 @@ export {
   type TradeThroughScanReport
 } from "./opportunity/trade-through-scan.js";
 export {
+  downloadFreeTardisDataset,
+  firstOfMonthDates,
+  freeTardisRoutes,
+  importFreeTardisHistory,
+  normalizeTardisDecimal,
+  readTardisEvents,
+  tardisCollectorRunId,
+  type DownloadedTardisDataset,
+  type DownloadTardisDatasetOptions,
+  type ImportedTardisPart,
+  type ImportFreeTardisHistoryOptions,
+  type ImportFreeTardisHistoryResult,
+  type TardisCacheRecord,
+  type TardisDatasetRoute,
+  type TardisDataType
+} from "./historical/tardis.js";
+export {
   CoinbasePublicAdapter,
   type CoinbaseAdapterDiagnostics,
   type CoinbaseProductDiagnostics,
