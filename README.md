@@ -23,12 +23,17 @@ methods and interpretation are in
 `research/initial-edge-screen-2026-08-06.md` and
 `research/free-history-edge-screen-2026-08-06.md`.
 
+A separate opt-in experiment now collects quote-only native Solana
+`EURC/USDC` routes from Jupiter at 1,000 and 10,000 units. It joins them
+to contemporaneous Coinbase depth in offline replay and has no wallet,
+transaction, or execution path.
+
 ## Repository map
 
 ```text
 config/                 Reviewed example configuration
 src/collector/          Public-only collection pipeline
-src/venues/             Coinbase, Binance, Bybit, and Kraken public adapters
+src/venues/             CEX public adapters and optional Jupiter quote adapter
 src/fair-value/         Future fair-value derivation
 src/opportunity/        Future shadow opportunity policy
 src/replay/             Deterministic no-look-ahead replay
@@ -54,7 +59,8 @@ There is intentionally no `src/execution/`.
 6. Review the Bybit public API contract.
 7. Review the Kraken public API contract.
 8. Review the bounded collector pilot runbook.
-9. Record only non-sensitive account findings in `research/access-audit.md`.
+9. Review the Jupiter public quote contract and experiment runbook.
+10. Record only non-sensitive account findings in `research/access-audit.md`.
 
 The economic thesis and full project boundaries are in
 `stable-corridor-new-repo-onboarding-brief-2026-08-01.md`.
@@ -70,6 +76,10 @@ The equivalent A4 Bybit rules are in
 
 The equivalent A4 Kraken rules are in
 `research/kraken-public-api-contract.md`.
+
+The quote-only Solana experiment boundary is in
+`research/jupiter-public-api-contract.md`; deployment and analysis are in
+`docs/operations/jupiter-shadow.md`.
 
 The install, named PM2 operations, rollback, and 72-hour measurement steps
 are in `docs/operations/collector-pilot.md`.
@@ -133,6 +143,16 @@ The focused maker trade-through screen uses the same verified archive:
 
 ```text
 npm run analyze:trade-through -- \
+  --data-root <verified-data-root> \
+  --output <report-path> \
+  --run-id <collector-run-id>
+```
+
+The opt-in Coinbase/Jupiter public quote screen uses the collector run created
+after Jupiter is enabled:
+
+```text
+npm run analyze:cex-dex -- \
   --data-root <verified-data-root> \
   --output <report-path> \
   --run-id <collector-run-id>

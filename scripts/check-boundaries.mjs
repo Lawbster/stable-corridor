@@ -26,7 +26,10 @@ const forbiddenReferences = [
   "wss://ws-auth.kraken.com",
   "/0/private/",
   "\"API-Key\"",
-  "\"API-Sign\""
+  "\"API-Sign\"",
+  "/swap/v2/execute",
+  "sendTransaction(",
+  "signTransaction("
 ];
 const allowedDependencies = new Set(["zod"]);
 

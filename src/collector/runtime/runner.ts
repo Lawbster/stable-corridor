@@ -29,6 +29,9 @@ import { KrakenPublicAdapter } from "../../venues/kraken/adapter.js";
 import { krakenCanonicalProduct } from "../../venues/kraken/constants.js";
 import { fetchKrakenPublicAssetPairs } from "../../venues/kraken/metadata.js";
 import { KrakenPublicWebSocketSession } from "../../venues/kraken/transport.js";
+import { JupiterPublicAdapter } from "../../venues/jupiter/adapter.js";
+import { JUPITER_PUBLIC_PRODUCT } from "../../venues/jupiter/constants.js";
+import { JupiterPublicQuoteSession } from "../../venues/jupiter/transport.js";
 import { PUBLIC_FEED_RECOVERY_CLOSE_CODE } from "../../venues/websocket-close.js";
 import {
   CollectorEventSink,
@@ -44,7 +47,12 @@ import {
   writeCollectorRunStartManifest
 } from "./run-manifest.js";
 
-type VenueName = "coinbase" | "binance" | "bybit" | "kraken";
+type VenueName =
+  | "coinbase"
+  | "binance"
+  | "bybit"
+  | "kraken"
+  | "jupiter";
 
 interface StoppableSession {
   stop(code?: number, reason?: string): void;
@@ -88,6 +96,7 @@ export class PublicCollectorRunner {
   readonly #binance: BinancePublicAdapter;
   readonly #bybit: BybitPublicAdapter;
   readonly #kraken: KrakenPublicAdapter;
+  readonly #jupiter: JupiterPublicAdapter | undefined;
   readonly #sessions = new Map<VenueName, ActiveSession>();
   readonly #connectInProgress = new Set<VenueName>();
   readonly #reconnectTimers = new Map<
@@ -161,6 +170,14 @@ export class PublicCollectorRunner {
       maxRecentTradeIds: this.#config.kraken.maxRecentTradeIds,
       staleAfterMs: this.#config.kraken.staleAfterMs
     });
+    this.#jupiter =
+      this.#config.jupiter === undefined
+        ? undefined
+        : new JupiterPublicAdapter({
+            collectorRunId: this.#collectorRunId,
+            inputAmounts: this.#config.jupiter.inputAmounts,
+            staleAfterMs: this.#config.jupiter.staleAfterMs
+          });
     this.#waitPromise = new Promise((resolve) => {
       this.#resolveWait = resolve;
     });
@@ -222,10 +239,17 @@ export class PublicCollectorRunner {
       void this.#checkpointTick();
     }, this.#config.book.checkpointIntervalMs);
 
+    const venues: VenueName[] = [
+      "coinbase",
+      "binance",
+      "bybit",
+      "kraken"
+    ];
+    if (this.#jupiter !== undefined) {
+      venues.push("jupiter");
+    }
     await Promise.all(
-      (["coinbase", "binance", "bybit", "kraken"] as const).map(
-        async (venue) => this.#connect(venue)
-      )
+      venues.map(async (venue) => this.#connect(venue))
     );
     await this.#publishHealth();
     this.#log(
@@ -322,6 +346,9 @@ export class PublicCollectorRunner {
           break;
         case "kraken":
           await this.#connectKraken();
+          break;
+        case "jupiter":
+          await this.#connectJupiter();
           break;
       }
       this.#venueErrors.delete(venue);
@@ -587,6 +614,65 @@ export class PublicCollectorRunner {
     }
   }
 
+  async #connectJupiter(): Promise<void> {
+    const adapter = this.#jupiter;
+    const config = this.#config.jupiter;
+    if (adapter === undefined || config === undefined) {
+      throw new Error("Jupiter collector is not configured");
+    }
+    const connectionId = randomUUID();
+    await this.#append(
+      adapter.beginConnection(connectionId, this.#now())
+    );
+    try {
+      let session: JupiterPublicQuoteSession;
+      session = new JupiterPublicQuoteSession({
+        inputAmounts: config.inputAmounts,
+        minimumRequestIntervalMs: config.minimumRequestIntervalMs,
+        retryDelayMs: config.retryDelayMs,
+        requestTimeoutMs: this.#config.runtime.restRequestTimeoutMs,
+        maxResponseBytes: config.maxResponseBytes,
+        onQuote: async (
+          request,
+          response,
+          requestStartedAtMs,
+          receivedTimestampMs
+        ) => {
+          await this.#handleVenueEvents(
+            "jupiter",
+            adapter.ingestQuote({
+              request,
+              response,
+              requestStartedAtMs,
+              receivedTimestampMs
+            })
+          );
+        },
+        onFailure: async (error, receivedTimestampMs) => {
+          this.#log(`jupiter public quote failure: ${error.message}`);
+          await this.#handleVenueEvents(
+            "jupiter",
+            adapter.recordFailure(error, receivedTimestampMs)
+          );
+        },
+        onClose: (code, reason) => {
+          void this.#handleClose("jupiter", session, code, reason);
+        }
+      });
+      this.#activateSession("jupiter", session, (time, reason) =>
+        adapter.endConnection(time, reason)
+      );
+    } catch (error) {
+      await this.#append(
+        adapter.endConnection(
+          this.#now(),
+          "connection_setup_failed"
+        )
+      );
+      throw error;
+    }
+  }
+
   #activateSession(
     venue: VenueName,
     session: StoppableSession & { start(): void },
@@ -672,7 +758,7 @@ export class PublicCollectorRunner {
       return;
     }
     const now = this.#now();
-    await Promise.all([
+    const checks: Promise<void>[] = [
       this.#handleVenueEvents(
         "coinbase",
         this.#coinbase.checkStaleness(now)
@@ -686,7 +772,16 @@ export class PublicCollectorRunner {
         "kraken",
         this.#kraken.checkStaleness(now)
       )
-    ]).catch((error: unknown) => {
+    ];
+    if (this.#jupiter !== undefined) {
+      checks.push(
+        this.#handleVenueEvents(
+          "jupiter",
+          this.#jupiter.checkStaleness(now)
+        )
+      );
+    }
+    await Promise.all(checks).catch((error: unknown) => {
       const reason = error instanceof Error ? error.message : String(error);
       this.#log(`staleness check failed: ${reason}`);
       void this.stop("staleness_check_failure", 1);
@@ -857,6 +952,19 @@ export class PublicCollectorRunner {
         reconnectCount: kraken.reconnectCount,
         crossedBookCount: product.crossedBookCount,
         eligibleForResearch: product.state === "healthy"
+      });
+    }
+    const jupiter = this.#jupiter?.diagnostics();
+    if (jupiter !== undefined) {
+      output.push({
+        venue: "jupiter",
+        product: JUPITER_PUBLIC_PRODUCT,
+        connectionState: jupiter.state,
+        venueSequence: jupiter.lastGoodVenueSequence,
+        gapCount: 0,
+        reconnectCount: jupiter.reconnectCount,
+        crossedBookCount: 0,
+        eligibleForResearch: jupiter.state === "healthy"
       });
     }
     return output;

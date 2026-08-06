@@ -42,6 +42,7 @@ export const normalizedEventTypeSchema = z.enum([
   "book_checkpoint",
   "book_delta",
   "trade",
+  "dex_quote",
   "trade_continuity",
   "market_status",
   "feed_status",
@@ -142,6 +143,53 @@ export const tradeEventSchema = z.strictObject({
   })
 });
 
+const dexRouteLegSchema = z.strictObject({
+  ammKey: z.string().min(1).max(128),
+  label: z.string().min(1).max(128),
+  inputMint: z.string().min(1).max(128),
+  outputMint: z.string().min(1).max(128),
+  inputAmountAtomic: positiveDecimalStringSchema,
+  outputAmountAtomic: positiveDecimalStringSchema,
+  percentBps: positiveSafeIntegerSchema.max(10_000)
+});
+
+export const dexQuoteEventSchema = z.strictObject({
+  ...commonEnvelopeShape,
+  eventType: z.literal("dex_quote"),
+  payload: z.strictObject({
+    quoteKind: z.literal("exact_in"),
+    inputAsset: assetSchema,
+    outputAsset: assetSchema,
+    inputMint: z.string().min(1).max(128),
+    outputMint: z.string().min(1).max(128),
+    inputDecimals: nonNegativeSafeIntegerSchema.max(30),
+    outputDecimals: nonNegativeSafeIntegerSchema.max(30),
+    inputAmountAtomic: positiveDecimalStringSchema,
+    outputAmountAtomic: positiveDecimalStringSchema,
+    minimumOutputAmountAtomic: positiveDecimalStringSchema,
+    inputAmount: positiveDecimalStringSchema,
+    outputAmount: positiveDecimalStringSchema,
+    minimumOutputAmount: positiveDecimalStringSchema,
+    requestStartedAtMs: utcEpochMillisecondsSchema,
+    quoteLatencyMs: nonNegativeSafeIntegerSchema,
+    providerProcessingMs: nonNegativeSafeIntegerSchema,
+    slippageBps: nonNegativeSafeIntegerSchema,
+    feeBps: nonNegativeSafeIntegerSchema,
+    platformFeeBps: nonNegativeSafeIntegerSchema,
+    priceImpactPct: canonicalDecimalStringSchema,
+    signatureFeeLamports: nonNegativeSafeIntegerSchema,
+    prioritizationFeeLamports: nonNegativeSafeIntegerSchema,
+    rentFeeLamports: nonNegativeSafeIntegerSchema,
+    router: z.string().min(1).max(128),
+    swapType: z.string().min(1).max(128),
+    gasless: z.boolean(),
+    guaranteedPrice: z.boolean(),
+    requestId: z.string().min(1).max(256),
+    quoteId: z.string().min(1).max(256).nullable(),
+    routePlan: z.array(dexRouteLegSchema).min(1).max(32)
+  })
+});
+
 export const tradeContinuityEventSchema = z.strictObject({
   ...commonEnvelopeShape,
   eventType: z.literal("trade_continuity"),
@@ -208,6 +256,7 @@ export const normalizedEventSchema = z.discriminatedUnion("eventType", [
   bookCheckpointEventSchema,
   bookDeltaEventSchema,
   tradeEventSchema,
+  dexQuoteEventSchema,
   tradeContinuityEventSchema,
   marketStatusEventSchema,
   feedStatusEventSchema,

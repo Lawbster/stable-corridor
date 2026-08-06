@@ -19,6 +19,7 @@
     "node": ">=24.11.0 <25"
   },
   "scripts": {
+    "analyze:cex-dex": "node dist/replay/cex-dex-scan-entrypoint.js",
     "analyze:checkpoints": "node dist/replay/checkpoint-scan-entrypoint.js",
     "analyze:trade-through": "node dist/replay/trade-through-scan-entrypoint.js",
     "audit:data": "node scripts/audit-dataset.mjs",

@@ -2,11 +2,17 @@ import { describe, expect, it } from "vitest";
 
 import {
   bookDeltaEventSchema,
+  dexQuoteEventSchema,
   normalizedEventSchema,
   publicRailStatusEventSchema,
   tradeContinuityEventSchema
 } from "../../src/collector/schema/events.js";
 import { makeTradeEvent } from "../fixtures/events.js";
+import {
+  createJupiterQuoteRequests
+} from "../../src/venues/jupiter/constants.js";
+import { makeJupiterOrderQuote } from "../fixtures/jupiter.js";
+import { JupiterPublicAdapter } from "../../src/venues/jupiter/adapter.js";
 
 describe("normalized event schemas", () => {
   it("accepts a strict normalized trade event", () => {
@@ -104,5 +110,26 @@ describe("normalized event schemas", () => {
         }
       }).success
     ).toBe(false);
+  });
+
+  it("persists a strict public DEX quote without transaction material", () => {
+    const adapter = new JupiterPublicAdapter({
+      collectorRunId: "11111111-1111-4111-8111-111111111111",
+      inputAmounts: ["1000", "10000"],
+      staleAfterMs: 30_000
+    });
+    adapter.beginConnection(
+      "22222222-2222-4222-8222-222222222222",
+      1_700_000_000_000
+    );
+    const request = createJupiterQuoteRequests(["1000"])[0]!;
+    const event = adapter.ingestQuote({
+      request,
+      response: makeJupiterOrderQuote(request),
+      requestStartedAtMs: 1_700_000_000_100,
+      receivedTimestampMs: 1_700_000_000_150
+    })[0]!;
+    expect(dexQuoteEventSchema.parse(event)).toEqual(event);
+    expect(JSON.stringify(event)).not.toMatch(/transaction|taker/iu);
   });
 });

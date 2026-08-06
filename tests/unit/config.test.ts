@@ -49,6 +49,28 @@ describe("collector configuration", () => {
     ]);
     expect(config.kraken.depth).toBe(25);
     expect(config.kraken.staleAfterMs).toBe(300_000);
+    expect(config.jupiter?.product).toBe("EURC-USDC");
+    expect(config.jupiter?.inputAmounts).toEqual(["1000", "10000"]);
+    expect(config.jupiter?.minimumRequestIntervalMs).toBe(2_100);
+  });
+
+  it("keeps Jupiter opt-in and enforces the public rate floor", async () => {
+    const contents = await readFile(
+      resolve("config/collector.example.json"),
+      "utf8"
+    );
+    const example = JSON.parse(contents) as Record<string, unknown>;
+    const { jupiter: _jupiter, ...withoutJupiter } = example;
+    expect(parseCollectorConfig(withoutJupiter).jupiter).toBeUndefined();
+    expect(
+      collectorConfigSchema.safeParse({
+        ...example,
+        jupiter: {
+          ...(example.jupiter as Record<string, unknown>),
+          minimumRequestIntervalMs: 1_999
+        }
+      }).success
+    ).toBe(false);
   });
 
   it("rejects relative runtime paths", () => {

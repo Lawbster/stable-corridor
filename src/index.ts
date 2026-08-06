@@ -83,6 +83,12 @@ export {
   type TradeThroughScanReport
 } from "./opportunity/trade-through-scan.js";
 export {
+  scanCoinbaseJupiterQuotes,
+  type CexDexDirection,
+  type CexDexScanOptions,
+  type CexDexScanReport
+} from "./opportunity/cex-dex-scan.js";
+export {
   downloadFreeTardisDataset,
   firstOfMonthDates,
   freeTardisRoutes,
@@ -337,3 +343,33 @@ export {
   type KrakenWebSocketFactory,
   type KrakenWebSocketLike
 } from "./venues/kraken/transport.js";
+export {
+  JupiterPublicAdapter,
+  type JupiterAdapterDiagnostics,
+  type JupiterPublicAdapterOptions,
+  type JupiterQuoteObservation
+} from "./venues/jupiter/adapter.js";
+export { atomicToDecimal } from "./venues/jupiter/amounts.js";
+export {
+  createJupiterQuoteRequests,
+  decimalToAtomic,
+  JUPITER_APPROVED_INPUT_AMOUNTS,
+  JUPITER_ASSETS,
+  JUPITER_PUBLIC_PRODUCT,
+  JUPITER_SWAP_V2_ORDER_URL,
+  jupiterQuoteRequestKey,
+  type JupiterApprovedInputAmount,
+  type JupiterAsset,
+  type JupiterQuoteRequest
+} from "./venues/jupiter/constants.js";
+export {
+  jupiterOrderQuoteSchema,
+  jupiterRouteLegSchema,
+  parseJupiterOrderQuote,
+  type JupiterOrderQuote
+} from "./venues/jupiter/schemas.js";
+export {
+  createJupiterOrderUrl,
+  JupiterPublicQuoteSession,
+  type JupiterPublicQuoteSessionOptions
+} from "./venues/jupiter/transport.js";

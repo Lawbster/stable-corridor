@@ -348,3 +348,29 @@ strategy or execution infrastructure. One or two more live weeks may
 confirm the current regime, but a positive decision would require
 materially different fees, access, or market structure rather than more
 of the same engineering.
+
+## Coinbase/Jupiter experiment boundary
+
+On 2026-08-06, a separate market-structure experiment was approved after the
+original maker corridor was classified as an economic no-go. It tests native
+Solana EURC/USDC router output against the Coinbase `EURC-USDC` book at exact
+input sizes of 1,000 and 10,000 in both directions.
+
+The implementation is public and quote-only. It sends no taker or wallet,
+requires returned transaction and taker fields to remain null, and persists
+request/receive latency, route, swap type, exact amounts, and fee estimates.
+It is optional in collector configuration, so the deployed 13-feed runtime
+does not change until the ignored VPS configuration is explicitly edited.
+
+The offline screen reconstructs Coinbase depth from checkpoints and deltas
+and makes the Jupiter quote available only at local receive time. It rejects
+insufficient or ineligible CEX state, models Coinbase fee plus configurable
+Solana cost and execution buffer, and applies a 3 bp decision threshold. A
+second qualifying quote at least two seconds later is recorded only as
+sampled persistence, not proof of continuous executability.
+
+No observation dataset or economic result exists yet. The first gate is at
+least 24 hours, with seven days preferred. Thirty days is justified only if
+the 3 bp/persistence evidence survives the initial screen. A positive public
+quote result would still require a reviewed shadow execution model before
+any wallet or transaction work could be considered.

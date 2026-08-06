@@ -65,5 +65,16 @@
     "staleAfterMs": 300000,
     "maxRecentTradeIds": 10000,
     "maxFrameBytes": 1048576
+  },
+  "jupiter": {
+    "product": "EURC-USDC",
+    "inputAmounts": [
+      "1000",
+      "10000"
+    ],
+    "minimumRequestIntervalMs": 2100,
+    "retryDelayMs": 5000,
+    "staleAfterMs": 30000,
+    "maxResponseBytes": 262144
   }
 }

@@ -13,6 +13,10 @@ import {
   KRAKEN_BOOK_DEPTH,
   KRAKEN_PUBLIC_PRODUCTS
 } from "../venues/kraken/constants.js";
+import {
+  JUPITER_APPROVED_INPUT_AMOUNTS,
+  JUPITER_PUBLIC_PRODUCT
+} from "../venues/jupiter/constants.js";
 
 const absolutePathSchema = z
   .string()
@@ -82,6 +86,18 @@ const krakenProductsSchema = z
     "Expected each approved Kraken product exactly once"
   );
 
+const jupiterInputAmountsSchema = z
+  .array(z.enum(JUPITER_APPROVED_INPUT_AMOUNTS))
+  .length(JUPITER_APPROVED_INPUT_AMOUNTS.length)
+  .refine(
+    (amounts) =>
+      new Set(amounts).size === JUPITER_APPROVED_INPUT_AMOUNTS.length &&
+      JUPITER_APPROVED_INPUT_AMOUNTS.every((amount) =>
+        amounts.includes(amount)
+      ),
+    "Expected each approved Jupiter input amount exactly once"
+  );
+
 export const collectorConfigSchema = z.strictObject({
   schemaVersion: schemaVersionSchema,
   processName: z.literal("stable-corridor-collector"),
@@ -132,7 +148,18 @@ export const collectorConfigSchema = z.strictObject({
     staleAfterMs: positiveSafeIntegerSchema,
     maxRecentTradeIds: positiveSafeIntegerSchema.max(100_000),
     maxFrameBytes: positiveSafeIntegerSchema
-  })
+  }),
+  jupiter: z
+    .strictObject({
+      product: z.literal(JUPITER_PUBLIC_PRODUCT),
+      inputAmounts: jupiterInputAmountsSchema,
+      minimumRequestIntervalMs:
+        positiveSafeIntegerSchema.min(2_000),
+      retryDelayMs: positiveSafeIntegerSchema,
+      staleAfterMs: positiveSafeIntegerSchema,
+      maxResponseBytes: positiveSafeIntegerSchema.max(1_048_576)
+    })
+    .optional()
 });
 
 export type CollectorConfig = z.infer<typeof collectorConfigSchema>;
