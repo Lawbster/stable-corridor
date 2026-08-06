@@ -64,7 +64,8 @@ async function writeCheckpoint(
 
 async function collect(
   dataRoot: string,
-  preferRepresentation: "source" | "gzip" = "gzip"
+  preferRepresentation: "source" | "gzip" = "gzip",
+  collectorRunId?: string
 ) {
   const parts = await discoverClosedJournalParts({
     dataRoot,
@@ -72,7 +73,10 @@ async function collect(
     preferRepresentation
   });
   const positions = [];
-  for await (const position of readMergedJournalParts(parts)) {
+  for await (const position of readMergedJournalParts(
+    parts,
+    collectorRunId === undefined ? {} : { collectorRunId }
+  )) {
     positions.push(position);
   }
   return { parts, positions };
@@ -163,5 +167,50 @@ describe("unified replay journal reader", () => {
     expect(result.parts[0]?.representation).toBe("source");
     expect(result.positions).toHaveLength(1);
     expect(await readFile(sourcePath)).toEqual(sourceContents);
+  });
+
+  it("excludes unrelated runs before enforcing receive order", async () => {
+    const dataRoot = await createTestDirectory();
+    testDirectories.push(dataRoot);
+    const selectedRunId = "33333333-3333-4333-8333-333333333333";
+    const writer = new JournalStreamWriter({
+      dataRoot,
+      venue: "coinbase",
+      product: "EURC-USDC",
+      eventType: "book_checkpoint",
+      maxPartBytes: 1024 * 1024,
+      syncEveryAppend: true,
+      now: () => receivedTimestampMs + 10_000
+    });
+    await writer.append(
+      makeBookCheckpointEvent({
+        receivedTimestampMs: receivedTimestampMs + 200,
+        ingestSequence: 1
+      })
+    );
+    await writer.append(
+      makeBookCheckpointEvent({
+        receivedTimestampMs: receivedTimestampMs + 100,
+        ingestSequence: 2
+      })
+    );
+    await writer.append(
+      makeBookCheckpointEvent({
+        receivedTimestampMs: receivedTimestampMs + 300,
+        ingestSequence: 3,
+        collectorRunId: selectedRunId
+      })
+    );
+    await writer.close();
+    await compressClosedJournals({ dataRoot });
+
+    await expect(collect(dataRoot)).rejects.toThrow(
+      /Receive time moved backwards/u
+    );
+    const selected = await collect(dataRoot, "gzip", selectedRunId);
+    expect(selected.positions).toHaveLength(1);
+    expect(selected.positions[0]?.event.collectorRunId).toBe(
+      selectedRunId
+    );
   });
 });

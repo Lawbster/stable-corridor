@@ -9,17 +9,21 @@ The first deployed Jupiter observation run,
 2026-08-06 07:36:36 UTC.
 
 A local pull captured stable copies of the mutable Coinbase and Jupiter
-`.jsonl.open` files. The general dataset audit passed all 754 immutable parts,
-but correctly excluded these open files. This screen is therefore explicitly
-provisional. It used the same receive-time, no-look-ahead comparison function
-as the immutable replay entrypoint but read the locally frozen open snapshots
-directly.
+`.jsonl.open` files for the initial screen. The repaired deployment then
+closed the original run cleanly at 2026-08-06 23:30:30 UTC, finalizing its
+Jupiter quote journal and both run manifests. After adding `dex_quote` to the
+dataset auditor's closed-route allowlist, the full local audit passed all 836
+immutable parts and all 14,805,192 events.
 
-The report is ignored runtime state at:
+The formal immutable replay report is tracked at:
 
 ```text
-state/provisional-coinbase-jupiter-open-scan.json
+backtests/initial-jupiter-edge-screen-2026-08-07.json
 ```
+
+The finalized run contains 2,304,010 events with contiguous ingest sequences
+from 0 through 2,304,009, no duplicates, and both provenance manifests. Its
+formal result matches the provisional open-file screen.
 
 ## Coverage
 
@@ -61,9 +65,9 @@ comparison was non-negative under the selected assumptions. Even the
 zero-Coinbase-fee sensitivity had a negative maximum of approximately
 `-1.4448 bp`.
 
-This is enough to reject the presence of a conspicuous, recurring spread in
-the observed window. It is not enough to prove that rare opportunities never
-occur.
+This immutable result is enough to reject the presence of a conspicuous,
+recurring spread in the observed window. It is not enough to prove that rare
+opportunities never occur.
 
 ## Collection defects and repair gate
 
@@ -89,7 +93,8 @@ The repair:
   scheduling can proceed;
 - adds regression coverage for all three observed failure shapes.
 
-The next economic gate is one clean 24-hour run after repair. If it again
-contains no gross 1 bp observation, further collection for this route is not
-justified.
-
+The repair was deployed as commit `92d3b42`. The replacement run,
+`0838a445-4675-4b2f-b70f-089a0c6c951e`, started with all 14 feeds healthy.
+The next economic gate remains one clean 24-hour run after repair. If it
+again contains no gross 1 bp observation, further collection for this route
+is not justified.

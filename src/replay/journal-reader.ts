@@ -55,6 +55,10 @@ export interface DiscoverClosedJournalPartsOptions {
   readonly preferRepresentation?: JournalRepresentation;
 }
 
+export interface ReadJournalOptions {
+  readonly collectorRunId?: string;
+}
+
 interface StreamObservation {
   bytes: number;
   readonly hash: ReturnType<typeof createHash>;
@@ -357,7 +361,8 @@ function observationTransform(
 }
 
 export async function* readClosedJournalPart(
-  part: ClosedJournalPart
+  part: ClosedJournalPart,
+  options: ReadJournalOptions = {}
 ): AsyncGenerator<ReplayPosition> {
   await assertRegularFile(part.readPath);
   const sourceObservation: StreamObservation = {
@@ -396,6 +401,7 @@ export async function* readClosedJournalPart(
   let lineNumber = 0;
   let firstReceivedTimestampMs: number | undefined;
   let lastReceivedTimestampMs: number | undefined;
+  let lastSelectedReceivedTimestampMs: number | undefined;
   let completed = false;
   let streamError: unknown;
   try {
@@ -416,17 +422,24 @@ export async function* readClosedJournalPart(
           `Event route mismatch at ${part.relativePath}:${lineNumber}`
         );
       }
+      firstReceivedTimestampMs ??= event.receivedTimestampMs;
+      lastReceivedTimestampMs = event.receivedTimestampMs;
       if (
-        lastReceivedTimestampMs !== undefined &&
-        event.receivedTimestampMs < lastReceivedTimestampMs
+        options.collectorRunId !== undefined &&
+        event.collectorRunId !== options.collectorRunId
+      ) {
+        continue;
+      }
+      if (
+        lastSelectedReceivedTimestampMs !== undefined &&
+        event.receivedTimestampMs < lastSelectedReceivedTimestampMs
       ) {
         throw new Error(
           `Receive time moved backwards at ` +
             `${part.relativePath}:${lineNumber}`
         );
       }
-      firstReceivedTimestampMs ??= event.receivedTimestampMs;
-      lastReceivedTimestampMs = event.receivedTimestampMs;
+      lastSelectedReceivedTimestampMs = event.receivedTimestampMs;
       yield {
         event,
         journalId: part.journalId,
@@ -511,10 +524,11 @@ function seriesKey(part: ClosedJournalPart): string {
 }
 
 async function* readSeries(
-  parts: readonly ClosedJournalPart[]
+  parts: readonly ClosedJournalPart[],
+  options: ReadJournalOptions
 ): AsyncGenerator<ReplayPosition> {
   for (const part of parts) {
-    yield* readClosedJournalPart(part);
+    yield* readClosedJournalPart(part, options);
   }
 }
 
@@ -582,7 +596,8 @@ function heapPop(heap: HeapEntry[]): HeapEntry | undefined {
 }
 
 export async function* readMergedJournalParts(
-  parts: readonly ClosedJournalPart[]
+  parts: readonly ClosedJournalPart[],
+  options: ReadJournalOptions = {}
 ): AsyncGenerator<ReplayPosition> {
   const grouped = new Map<string, ClosedJournalPart[]>();
   for (const part of parts) {
@@ -596,7 +611,8 @@ export async function* readMergedJournalParts(
     readSeries(
       [...series].sort((left, right) =>
         left.relativePath.localeCompare(right.relativePath)
-      )
+      ),
+      options
     )[Symbol.asyncIterator]()
   );
   const heap: HeapEntry[] = [];

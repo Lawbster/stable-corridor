@@ -373,8 +373,11 @@ sampled persistence, not proof of continuous executability.
 The first deployment produced 14,529 eligible comparisons over 9.47 hours
 before observed Jupiter response variants exposed parser and
 reconnect-lifecycle defects. No gross comparison reached 1 bp and no modeled
-comparison was non-negative. This provisional result rejects a conspicuous
-recurring edge in that window but does not replace a clean immutable run. The
+comparison was non-negative. After clean shutdown, the run became fully
+immutable with 2,304,010 contiguous events and both provenance manifests; its
+formal replay exactly matched the provisional screen. This result rejects a
+conspicuous recurring edge in that window, while the repaired 24-hour run
+tests whether the same conclusion holds without collection defects. The
 defects and exact result are documented in
 `research/initial-jupiter-edge-screen-2026-08-07.md`. The next gate is a
 single repaired 24-hour confirmation, not an automatic seven-day extension.

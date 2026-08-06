@@ -130,7 +130,9 @@ const parts = await discoverClosedJournalParts({
   preferRepresentation: arguments_.preferRepresentation
 });
 const report = await scanCoinbaseJupiterQuotes(
-  readMergedJournalParts(parts),
+  readMergedJournalParts(parts, {
+    collectorRunId: arguments_.collectorRunId
+  }),
   {
     collectorRunId: arguments_.collectorRunId,
     coinbaseFeeBps: arguments_.coinbaseFeeBps,
@@ -151,4 +153,3 @@ console.log(
     sampledPersistence: report.sampledPersistence
   })
 );
-

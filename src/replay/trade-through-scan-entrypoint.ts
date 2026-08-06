@@ -79,7 +79,9 @@ const parts = await discoverClosedJournalParts({
   preferRepresentation: "gzip"
 });
 const report = await scanTradeThrough(
-  readMergedJournalParts(parts),
+  readMergedJournalParts(parts, {
+    collectorRunId: arguments_.collectorRunId
+  }),
   {
     collectorRunId: arguments_.collectorRunId,
     targetSampleIntervalMs: arguments_.targetSampleIntervalMs

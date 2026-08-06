@@ -12,7 +12,12 @@ import {
 import {
   tradeContinuityEventSchema
 } from "../../src/collector/schema/events.js";
+import { JupiterPublicAdapter } from "../../src/venues/jupiter/adapter.js";
+import {
+  createJupiterQuoteRequests
+} from "../../src/venues/jupiter/constants.js";
 import { makeTradeEvent } from "../fixtures/events.js";
+import { makeJupiterOrderQuote } from "../fixtures/jupiter.js";
 import {
   createTestDirectory,
   removeTestDirectory
@@ -197,5 +202,81 @@ describe("local dataset audit", () => {
         }
       }
     });
+  });
+
+  it("verifies a finalized Jupiter DEX quote journal", async () => {
+    const root = await createTestDirectory();
+    testDirectories.push(root);
+    const dataRoot = join(root, "data");
+    const reportPath = join(root, "state", "dataset-audit.json");
+    const receivedTimestampMs = Date.UTC(2026, 7, 7, 12, 0, 0);
+    const adapter = new JupiterPublicAdapter({
+      collectorRunId: "11111111-1111-4111-8111-111111111111",
+      inputAmounts: ["1000"],
+      staleAfterMs: 30_000
+    });
+    const statusEvent = adapter.beginConnection(
+      "22222222-2222-4222-8222-222222222222",
+      receivedTimestampMs
+    )[0]!;
+    const request = createJupiterQuoteRequests(["1000"])[0]!;
+    const quoteEvent = adapter.ingestQuote({
+      request,
+      response: makeJupiterOrderQuote(request),
+      requestStartedAtMs: receivedTimestampMs + 100,
+      receivedTimestampMs: receivedTimestampMs + 150
+    })[0]!;
+    const writer = new JournalStreamWriter({
+      dataRoot,
+      venue: "jupiter",
+      product: "EURC-USDC",
+      eventType: "dex_quote",
+      maxPartBytes: 1024 * 1024,
+      syncEveryAppend: true,
+      now: () => receivedTimestampMs + 200
+    });
+    const statusWriter = new JournalStreamWriter({
+      dataRoot,
+      venue: "jupiter",
+      product: "EURC-USDC",
+      eventType: "feed_status",
+      maxPartBytes: 1024 * 1024,
+      syncEveryAppend: true,
+      now: () => receivedTimestampMs + 200
+    });
+    await statusWriter.append(statusEvent);
+    await writer.append(quoteEvent);
+    await statusWriter.close();
+    await writer.close();
+
+    let auditError: unknown;
+    try {
+      await execFileAsync(process.execPath, [
+        resolve("scripts/audit-dataset.mjs"),
+        "--data-root",
+        dataRoot,
+        "--output",
+        reportPath,
+        "--compression",
+        "none"
+      ]);
+    } catch (error) {
+      auditError = error;
+    }
+    const report = JSON.parse(await readFile(reportPath, "utf8"));
+
+    expect(report, JSON.stringify(report.integrity)).toMatchObject({
+      integrity: {
+        passed: true,
+        closedParts: 2,
+        verifiedClosedParts: 2,
+        failures: []
+      },
+      total: {
+        events: 2,
+        eventTypes: { dex_quote: 1, feed_status: 1 }
+      }
+    });
+    expect(auditError).toBeUndefined();
   });
 });

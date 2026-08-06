@@ -120,7 +120,9 @@ const parts = await discoverClosedJournalParts({
   preferRepresentation: arguments_.preferRepresentation
 });
 const report = await scanCorridorCheckpoints(
-  readMergedJournalParts(parts),
+  readMergedJournalParts(parts, {
+    collectorRunId: arguments_.collectorRunId
+  }),
   {
     collectorRunId: arguments_.collectorRunId,
     freshnessMs: arguments_.freshnessMs,
