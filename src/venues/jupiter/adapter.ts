@@ -7,11 +7,13 @@ import {
   collectorRunIdSchema,
   connectionIdSchema,
   nonNegativeSafeIntegerSchema,
-  normalizeDecimalString,
   positiveSafeIntegerSchema,
   utcEpochMillisecondsSchema
 } from "../../collector/schema/primitives.js";
-import { atomicToDecimal } from "./amounts.js";
+import {
+  atomicToDecimal,
+  normalizeJupiterDecimal
+} from "./amounts.js";
 import {
   createJupiterQuoteRequests,
   JUPITER_ASSETS,
@@ -168,7 +170,7 @@ export class JupiterPublicAdapter {
         slippageBps: quote.slippageBps,
         feeBps: quote.feeBps,
         platformFeeBps: quote.platformFee.feeBps,
-        priceImpactPct: normalizeDecimalString(quote.priceImpactPct),
+        priceImpactPct: normalizeJupiterDecimal(quote.priceImpactPct),
         signatureFeeLamports: quote.signatureFeeLamports,
         prioritizationFeeLamports: quote.prioritizationFeeLamports,
         rentFeeLamports: quote.rentFeeLamports,
@@ -260,9 +262,15 @@ export class JupiterPublicAdapter {
       return [];
     }
     const received = utcEpochMillisecondsSchema.parse(receivedTimestampMs);
+    const status = this.#status(
+      "stopped",
+      false,
+      reason.slice(0, 512),
+      received
+    );
     this.#active = false;
     this.#state = "stopped";
-    return [this.#status("stopped", false, reason.slice(0, 512), received)];
+    return [status];
   }
 
   diagnostics(): JupiterAdapterDiagnostics {
@@ -342,4 +350,3 @@ export class JupiterPublicAdapter {
     });
   }
 }
-

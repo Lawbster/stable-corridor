@@ -359,8 +359,9 @@ input sizes of 1,000 and 10,000 in both directions.
 The implementation is public and quote-only. It sends no taker or wallet,
 requires returned transaction and taker fields to remain null, and persists
 request/receive latency, route, swap type, exact amounts, and fee estimates.
-It is optional in collector configuration, so the deployed 13-feed runtime
-does not change until the ignored VPS configuration is explicitly edited.
+It remains optional in collector configuration. The first deployment enabled
+it as a fourteenth feed without adding another process or any authenticated
+surface.
 
 The offline screen reconstructs Coinbase depth from checkpoints and deltas
 and makes the Jupiter quote available only at local receive time. It rejects
@@ -369,8 +370,13 @@ Solana cost and execution buffer, and applies a 3 bp decision threshold. A
 second qualifying quote at least two seconds later is recorded only as
 sampled persistence, not proof of continuous executability.
 
-No observation dataset or economic result exists yet. The first gate is at
-least 24 hours, with seven days preferred. Thirty days is justified only if
-the 3 bp/persistence evidence survives the initial screen. A positive public
-quote result would still require a reviewed shadow execution model before
-any wallet or transaction work could be considered.
+The first deployment produced 14,529 eligible comparisons over 9.47 hours
+before observed Jupiter response variants exposed parser and
+reconnect-lifecycle defects. No gross comparison reached 1 bp and no modeled
+comparison was non-negative. This provisional result rejects a conspicuous
+recurring edge in that window but does not replace a clean immutable run. The
+defects and exact result are documented in
+`research/initial-jupiter-edge-screen-2026-08-07.md`. The next gate is a
+single repaired 24-hour confirmation, not an automatic seven-day extension.
+A positive public quote result would still require a reviewed shadow
+execution model before any wallet or transaction work could be considered.

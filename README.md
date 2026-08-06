@@ -23,10 +23,12 @@ methods and interpretation are in
 `research/initial-edge-screen-2026-08-06.md` and
 `research/free-history-edge-screen-2026-08-06.md`.
 
-A separate opt-in experiment now collects quote-only native Solana
-`EURC/USDC` routes from Jupiter at 1,000 and 10,000 units. It joins them
-to contemporaneous Coinbase depth in offline replay and has no wallet,
-transaction, or execution path.
+A separate opt-in experiment collects quote-only native Solana `EURC/USDC`
+routes from Jupiter at 1,000 and 10,000 units. Its first 9.47-hour screen
+found no gross 1 bp observation; a bounded response/reconnect repair is ready
+for one clean 24-hour confirmation. It joins quotes to contemporaneous
+Coinbase depth in offline replay and has no wallet, transaction, or execution
+path.
 
 ## Repository map
 

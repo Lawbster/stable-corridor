@@ -1,5 +1,8 @@
 import { normalizeDecimalString } from "../../collector/schema/primitives.js";
 
+const exponentDecimalPattern =
+  /^([+-]?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/u;
+
 export function atomicToDecimal(
   atomicAmount: string,
   decimals: number
@@ -27,3 +30,35 @@ export function numberToCanonicalDecimal(value: number): string {
   return normalizeDecimalString(expanded);
 }
 
+export function normalizeJupiterDecimal(input: string): string {
+  const match = exponentDecimalPattern.exec(input);
+  if (match === null) {
+    throw new Error(`Invalid Jupiter decimal string: ${input}`);
+  }
+  const [, sign = "", integer = "", fraction = "", rawExponent = "0"] =
+    match;
+  const exponent = Number.parseInt(rawExponent, 10);
+  if (!Number.isSafeInteger(exponent) || Math.abs(exponent) > 128) {
+    throw new Error(`Jupiter decimal exponent is out of bounds: ${input}`);
+  }
+
+  const digits = `${integer}${fraction}`;
+  const decimalIndex = integer.length + exponent;
+  let expanded: string;
+  if (decimalIndex <= 0) {
+    expanded = `0.${"0".repeat(-decimalIndex)}${digits}`;
+  } else if (decimalIndex >= digits.length) {
+    expanded = `${digits}${"0".repeat(decimalIndex - digits.length)}`;
+  } else {
+    expanded =
+      `${digits.slice(0, decimalIndex)}.` +
+      digits.slice(decimalIndex);
+  }
+  const normalized = normalizeDecimalString(
+    `${sign === "-" ? "-" : ""}${expanded}`
+  );
+  if (normalized.length > 256) {
+    throw new Error(`Jupiter decimal expansion is too long: ${input}`);
+  }
+  return normalized;
+}

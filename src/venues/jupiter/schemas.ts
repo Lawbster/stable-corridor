@@ -2,6 +2,11 @@ import { z } from "zod";
 
 const atomicAmountSchema = z.string().regex(/^[1-9]\d*$/u);
 const mintSchema = z.string().min(32).max(128);
+const exponentDecimalSchema = z
+  .string()
+  .min(1)
+  .max(128)
+  .regex(/^[+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/u);
 
 const swapInfoSchema = z.object({
   ammKey: z.string().min(1).max(128),
@@ -13,7 +18,7 @@ const swapInfoSchema = z.object({
 });
 
 export const jupiterRouteLegSchema = z.object({
-  percent: z.number().int().positive().max(100),
+  percent: z.number().finite().positive().max(100),
   bps: z.number().int().positive().max(10_000),
   swapInfo: swapInfoSchema
 });
@@ -26,7 +31,7 @@ export const jupiterOrderQuoteSchema = z.object({
   otherAmountThreshold: atomicAmountSchema,
   swapMode: z.literal("ExactIn"),
   slippageBps: z.number().int().nonnegative(),
-  priceImpactPct: z.string().regex(/^-?\d+(?:\.\d+)?$/u),
+  priceImpactPct: exponentDecimalSchema,
   routePlan: z.array(jupiterRouteLegSchema).min(1).max(32),
   feeBps: z.number().int().nonnegative(),
   transaction: z.null(),
@@ -53,4 +58,3 @@ export type JupiterOrderQuote = z.infer<
 export function parseJupiterOrderQuote(input: unknown): JupiterOrderQuote {
   return jupiterOrderQuoteSchema.parse(input);
 }
-

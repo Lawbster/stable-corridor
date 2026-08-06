@@ -349,7 +349,10 @@ export {
   type JupiterPublicAdapterOptions,
   type JupiterQuoteObservation
 } from "./venues/jupiter/adapter.js";
-export { atomicToDecimal } from "./venues/jupiter/amounts.js";
+export {
+  atomicToDecimal,
+  normalizeJupiterDecimal
+} from "./venues/jupiter/amounts.js";
 export {
   createJupiterQuoteRequests,
   decimalToAtomic,

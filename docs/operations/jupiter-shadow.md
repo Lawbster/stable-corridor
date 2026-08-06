@@ -61,9 +61,10 @@ transaction or taker is a schema failure, not something to execute.
 
 ## Observation gate
 
-Use a minimum 24-hour triage window. Seven days is preferred for the first
-decision; extend to 30 days only if the modeled 3 bp gate produces enough
-observations to justify it.
+The first deployment already provided a 9.47-hour provisional negative
+screen. After the bounded response/reconnect repair, use one clean 24-hour
+confirmation. Stop this route if no gross 1 bp observation appears. Extend
+only when that threshold produces enough evidence to justify more collection.
 
 Check:
 
@@ -118,4 +119,3 @@ Do not expand the experiment when a sufficiently observed run has no modeled
 3 bp opportunities after the selected fee, network-cost, and execution
 buffer assumptions. Do not let an isolated maximum override the route-size
 distribution, persistence result, or depth-rejection counts.
-

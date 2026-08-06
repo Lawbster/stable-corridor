@@ -72,6 +72,12 @@ Every accepted quote preserves:
 Amounts remain decimal strings in normalized journals. No private account or
 wallet identifier is collected.
 
+Jupiter may express `priceImpactPct` in plain or scientific decimal notation.
+Bounded scientific strings are expanded exactly into canonical plain decimal
+strings before persistence. Split routes may express `percent` fractionally;
+the journal retains the corresponding integer `bps` allocation used by the
+economic record.
+
 Jupiter does not provide an authoritative market timestamp for this response.
 `sourceTimestampMs` is therefore null. The quote becomes available to replay
 only at its local `receivedTimestampMs`.
@@ -109,4 +115,3 @@ The first decision gate is deliberately severe:
 
 Next-quote confirmation is sampled persistence. It does not prove that an
 opportunity remained continuously executable.
-

@@ -8,6 +8,8 @@ export function makeJupiterOrderQuote(
   overrides: {
     readonly outAmount?: string;
     readonly requestId?: string;
+    readonly priceImpactPct?: string;
+    readonly routePlan?: readonly Record<string, unknown>[];
   } = {}
 ): Record<string, unknown> {
   const outputMint = JUPITER_ASSETS[request.outputAsset].mint;
@@ -21,22 +23,24 @@ export function makeJupiterOrderQuote(
     otherAmountThreshold: outAmount,
     swapMode: "ExactIn",
     slippageBps: 0,
-    priceImpactPct: "-0.00001",
-    routePlan: [
-      {
-        percent: 100,
-        bps: 10_000,
-        usdValue: 1_000,
-        swapInfo: {
-          ammKey: "test-amm",
-          label: "JupiterZ",
-          inputMint,
-          outputMint,
-          inAmount: request.inputAmountAtomic,
-          outAmount
+    priceImpactPct: overrides.priceImpactPct ?? "-0.00001",
+    routePlan:
+      overrides.routePlan ??
+      [
+        {
+          percent: 100,
+          bps: 10_000,
+          usdValue: 1_000,
+          swapInfo: {
+            ammKey: "test-amm",
+            label: "JupiterZ",
+            inputMint,
+            outputMint,
+            inAmount: request.inputAmountAtomic,
+            outAmount
+          }
         }
-      }
-    ],
+      ],
     feeMint: inputMint,
     feeBps: 0,
     transaction: null,
@@ -68,4 +72,3 @@ export function makeJupiterOrderQuote(
     totalTime: 50
   };
 }
-

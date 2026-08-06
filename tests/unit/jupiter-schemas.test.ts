@@ -34,5 +34,24 @@ describe("Jupiter public quote schema", () => {
       }).success
     ).toBe(false);
   });
-});
 
+  it("accepts observed scientific impact and fractional split routes", () => {
+    const quote = makeJupiterOrderQuote(request);
+    const route = (
+      quote.routePlan as readonly Record<string, unknown>[]
+    )[0]!;
+    const parsed = jupiterOrderQuoteSchema.parse({
+      ...quote,
+      priceImpactPct: "2.8e-7",
+      routePlan: [
+        { ...route, percent: 99.5, bps: 9_950 },
+        { ...route, percent: 0.5, bps: 50 }
+      ]
+    });
+    expect(parsed.priceImpactPct).toBe("2.8e-7");
+    expect(parsed.routePlan.map((leg) => leg.percent)).toEqual([
+      99.5,
+      0.5
+    ]);
+  });
+});
