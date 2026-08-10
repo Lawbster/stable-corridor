@@ -31,6 +31,73 @@ afterEach(async () => {
 });
 
 describe("local dataset audit", () => {
+  it("bounds latency memory while preserving exact sequence coverage", async () => {
+    const root = await createTestDirectory();
+    testDirectories.push(root);
+    const dataRoot = join(root, "data");
+    const reportPath = join(root, "state", "dataset-audit.json");
+    const receivedTimestampMs = Date.UTC(2026, 7, 10, 12, 0, 0);
+    const eventCount = 10_000;
+    const writer = new JournalStreamWriter({
+      dataRoot,
+      venue: "coinbase",
+      product: "EURC-USDC",
+      eventType: "trade",
+      maxPartBytes: 16 * 1024 * 1024,
+      syncEveryAppend: false,
+      now: () => receivedTimestampMs + 2_000
+    });
+    for (let ingestSequence = 0; ingestSequence < eventCount; ingestSequence += 1) {
+      const latencyMs = ingestSequence % 1_000;
+      await writer.append(
+        makeTradeEvent({
+          sourceTimestampMs: receivedTimestampMs,
+          receivedTimestampMs: receivedTimestampMs + latencyMs,
+          ingestSequence
+        })
+      );
+    }
+    await writer.close();
+
+    await execFileAsync(process.execPath, [
+      resolve("scripts/audit-dataset.mjs"),
+      "--data-root",
+      dataRoot,
+      "--output",
+      reportPath,
+      "--compression",
+      "none"
+    ]);
+    const report = JSON.parse(await readFile(reportPath, "utf8"));
+    const run = report.provenance.observedRuns[
+      "11111111-1111-4111-8111-111111111111"
+    ];
+
+    expect(report.integrity).toMatchObject({
+      passed: true,
+      closedParts: 1,
+      verifiedClosedParts: 1
+    });
+    expect(report.total).toMatchObject({
+      events: eventCount,
+      sourceToReceiveLatency: {
+        observations: eventCount,
+        negativeObservations: 0,
+        sampleSize: 8_192,
+        quantileMethod: "deterministic_reservoir",
+        minimumMs: 0,
+        maximumMs: 999
+      }
+    });
+    expect(run).toMatchObject({
+      eventsInClosedParts: eventCount,
+      minimumIngestSequence: 0,
+      maximumIngestSequence: eventCount - 1,
+      duplicateIngestSequences: 0,
+      unobservedSequencesWithinClosedRange: 0
+    });
+  });
+
   it("verifies a closed journal and writes a reusable report", async () => {
     const root = await createTestDirectory();
     testDirectories.push(root);

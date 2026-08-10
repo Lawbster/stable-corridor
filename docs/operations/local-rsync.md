@@ -141,6 +141,13 @@ The command:
 - reports coverage, event rates, event-type-isolated source-to-receive
   latency, feed-state and trade-continuity reasons, ingest-sequence
   observations, and run-manifest coverage;
+- keeps event counts, latency bounds, negative-latency counts, and
+  ingest-sequence duplicate/gap detection exact while bounding audit
+  memory; latency percentiles use an exact sample through 8,192
+  observations per aggregate and a deterministic 8,192-observation
+  reservoir above that threshold. The report records `sampleSize` and
+  `quantileMethod` so analysis does not mistake sampled percentiles for
+  exact order statistics;
 - streams each closed part through gzip level 6 to measure a real
   compression ratio without creating or changing journal files.
 

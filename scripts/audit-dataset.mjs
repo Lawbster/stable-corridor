@@ -79,18 +79,70 @@ function percentile(sortedValues, proportion) {
   ];
 }
 
-function latencySummary(values) {
-  values.sort((left, right) => left - right);
+const maximumLatencySamples = 8_192;
+
+function newLatencyAccumulator() {
   return {
-    observations: values.length,
-    negativeObservations: values.findIndex((value) => value >= 0) === -1
-      ? values.length
-      : Math.max(0, values.findIndex((value) => value >= 0)),
-    minimumMs: values[0] ?? null,
+    observations: 0,
+    negativeObservations: 0,
+    minimumMs: null,
+    maximumMs: null,
+    samples: [],
+    randomState: 0x6d2b79f5
+  };
+}
+
+function nextDeterministicRandom(accumulator) {
+  let state = accumulator.randomState;
+  state ^= state << 13;
+  state ^= state >>> 17;
+  state ^= state << 5;
+  accumulator.randomState = state >>> 0;
+  return accumulator.randomState / 0x1_0000_0000;
+}
+
+function observeLatency(accumulator, value) {
+  accumulator.observations += 1;
+  if (value < 0) {
+    accumulator.negativeObservations += 1;
+  }
+  accumulator.minimumMs =
+    accumulator.minimumMs === null
+      ? value
+      : Math.min(accumulator.minimumMs, value);
+  accumulator.maximumMs =
+    accumulator.maximumMs === null
+      ? value
+      : Math.max(accumulator.maximumMs, value);
+  if (accumulator.samples.length < maximumLatencySamples) {
+    accumulator.samples.push(value);
+    return;
+  }
+  const replacementIndex = Math.floor(
+    nextDeterministicRandom(accumulator) * accumulator.observations
+  );
+  if (replacementIndex < maximumLatencySamples) {
+    accumulator.samples[replacementIndex] = value;
+  }
+}
+
+function latencySummary(accumulator) {
+  const values = [...accumulator.samples].sort(
+    (left, right) => left - right
+  );
+  return {
+    observations: accumulator.observations,
+    negativeObservations: accumulator.negativeObservations,
+    sampleSize: values.length,
+    quantileMethod:
+      accumulator.observations === values.length
+        ? "exact"
+        : "deterministic_reservoir",
+    minimumMs: accumulator.minimumMs,
     p50Ms: percentile(values, 0.5),
     p95Ms: percentile(values, 0.95),
     p99Ms: percentile(values, 0.99),
-    maximumMs: values.at(-1) ?? null
+    maximumMs: accumulator.maximumMs
   };
 }
 
@@ -169,8 +221,35 @@ function newAggregate() {
     firstReceivedTimestampMs: null,
     lastReceivedTimestampMs: null,
     eventTypes: {},
-    latencies: []
+    latency: newLatencyAccumulator()
   };
+}
+
+function newSequenceObservation() {
+  return {
+    uniqueSequences: 0,
+    words: new Uint32Array(32)
+  };
+}
+
+function observeIngestSequence(observation, sequence) {
+  const wordIndex = Math.floor(sequence / 32);
+  if (wordIndex >= observation.words.length) {
+    let nextLength = observation.words.length;
+    while (nextLength <= wordIndex) {
+      nextLength *= 2;
+    }
+    const words = new Uint32Array(nextLength);
+    words.set(observation.words);
+    observation.words = words;
+  }
+  const mask = (1 << (sequence % 32)) >>> 0;
+  if ((observation.words[wordIndex] & mask) !== 0) {
+    return false;
+  }
+  observation.words[wordIndex] |= mask;
+  observation.uniqueSequences += 1;
+  return true;
 }
 
 function observeTimestamp(aggregate, receivedTimestampMs) {
@@ -242,10 +321,10 @@ function observeEvent(context, route, event, filePath, lineNumber) {
 
   if (Number.isSafeInteger(event.sourceTimestampMs)) {
     const latency = event.receivedTimestampMs - event.sourceTimestampMs;
-    context.total.latencies.push(latency);
-    venue.latencies.push(latency);
-    product.latencies.push(latency);
-    feedEventType.latencies.push(latency);
+    observeLatency(context.total.latency, latency);
+    observeLatency(venue.latency, latency);
+    observeLatency(product.latency, latency);
+    observeLatency(feedEventType.latency, latency);
   }
 
   const run =
@@ -255,7 +334,7 @@ function observeEvent(context, route, event, filePath, lineNumber) {
       minimumIngestSequence: null,
       maximumIngestSequence: null,
       duplicateIngestSequences: 0,
-      ingestSequences: new Set(),
+      ingestSequences: newSequenceObservation(),
       connectionIds: new Set()
     };
   run.events += 1;
@@ -267,10 +346,8 @@ function observeEvent(context, route, event, filePath, lineNumber) {
     run.maximumIngestSequence === null
       ? event.ingestSequence
       : Math.max(run.maximumIngestSequence, event.ingestSequence);
-  if (run.ingestSequences.has(event.ingestSequence)) {
+  if (!observeIngestSequence(run.ingestSequences, event.ingestSequence)) {
     run.duplicateIngestSequences += 1;
-  } else {
-    run.ingestSequences.add(event.ingestSequence);
   }
   run.connectionIds.add(event.connectionId);
   context.runs.set(event.collectorRunId, run);
@@ -592,7 +669,7 @@ function summarizeAggregate(aggregate, compression) {
         ? null
         : round(aggregate.events / (durationMs / 1_000)),
     eventTypes: sortedRecord(aggregate.eventTypes),
-    sourceToReceiveLatency: latencySummary(aggregate.latencies),
+    sourceToReceiveLatency: latencySummary(aggregate.latency),
     compression:
       compression === "gzip"
         ? {
@@ -619,7 +696,7 @@ function summarizeRuns(runs, starts, ends) {
   for (const [runId, run] of [...runs].sort(([left], [right]) =>
     left.localeCompare(right)
   )) {
-    const uniqueSequences = run.ingestSequences.size;
+    const uniqueSequences = run.ingestSequences.uniqueSequences;
     const expectedSpan =
       run.minimumIngestSequence === null ||
       run.maximumIngestSequence === null
