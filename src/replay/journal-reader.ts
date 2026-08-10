@@ -360,9 +360,10 @@ function observationTransform(
   });
 }
 
-export async function* readClosedJournalPart(
+async function* readClosedJournalPartInternal(
   part: ClosedJournalPart,
-  options: ReadJournalOptions = {}
+  options: ReadJournalOptions,
+  enforceReceiveOrder: boolean
 ): AsyncGenerator<ReplayPosition> {
   await assertRegularFile(part.readPath);
   const sourceObservation: StreamObservation = {
@@ -431,6 +432,7 @@ export async function* readClosedJournalPart(
         continue;
       }
       if (
+        enforceReceiveOrder &&
         lastSelectedReceivedTimestampMs !== undefined &&
         event.receivedTimestampMs < lastSelectedReceivedTimestampMs
       ) {
@@ -515,6 +517,13 @@ export async function* readClosedJournalPart(
   }
 }
 
+export async function* readClosedJournalPart(
+  part: ClosedJournalPart,
+  options: ReadJournalOptions = {}
+): AsyncGenerator<ReplayPosition> {
+  yield* readClosedJournalPartInternal(part, options, true);
+}
+
 function seriesKey(part: ClosedJournalPart): string {
   return [
     part.metadata.venue,
@@ -527,6 +536,23 @@ async function* readSeries(
   parts: readonly ClosedJournalPart[],
   options: ReadJournalOptions
 ): AsyncGenerator<ReplayPosition> {
+  if (parts[0]?.metadata.eventType === "feed_status") {
+    const buffered: ReplayPosition[] = [];
+    for (const part of parts) {
+      for await (const position of readClosedJournalPartInternal(
+        part,
+        options,
+        false
+      )) {
+        buffered.push(position);
+      }
+    }
+    buffered.sort(compareReplayPositions);
+    for (const position of buffered) {
+      yield position;
+    }
+    return;
+  }
   for (const part of parts) {
     yield* readClosedJournalPart(part, options);
   }

@@ -83,6 +83,7 @@ export interface CexDexScanReport {
     readonly elapsedHours: number | null;
   };
   readonly byRouteSize: Readonly<Record<string, RouteSizeSummary>>;
+  readonly largestModeledEdges: readonly CexDexEdgeSample[];
   readonly feeSensitivity: Readonly<
     Record<
       string,
@@ -112,7 +113,7 @@ export interface CexDexScanReport {
   };
 }
 
-interface EdgeSample {
+export interface CexDexEdgeSample {
   readonly key: string;
   readonly direction: CexDexDirection;
   readonly inputAmount: string;
@@ -277,7 +278,7 @@ function thresholdTable(
 
 function modeledEdge(
   sample: Pick<
-    EdgeSample,
+    CexDexEdgeSample,
     "capitalUsdc" | "coinbaseFeeNotionalUsdc" | "zeroFeePnlUsdc"
   >,
   coinbaseFeeBps: number,
@@ -295,7 +296,7 @@ function modeledEdge(
 }
 
 function routeSizeSummary(
-  samples: readonly EdgeSample[]
+  samples: readonly CexDexEdgeSample[]
 ): RouteSizeSummary {
   const gross = samples.map((sample) => sample.grossEdgeBps);
   const net = samples.map((sample) => sample.modeledNetEdgeBps);
@@ -353,7 +354,7 @@ export async function scanCoinbaseJupiterQuotes(
 
   const book = new CoinbaseReplayBook();
   let coinbaseEligible = false;
-  const samples: EdgeSample[] = [];
+  const samples: CexDexEdgeSample[] = [];
   const previousByKey = new Map<string, PersistenceStart>();
   const lastSampleAtByKey = new Map<string, number>();
   const confirmationIntervals: number[] = [];
@@ -441,7 +442,7 @@ export async function scanCoinbaseJupiterQuotes(
     }
   }
 
-  const grouped = new Map<string, EdgeSample[]>();
+  const grouped = new Map<string, CexDexEdgeSample[]>();
   for (const sample of samples) {
     const entries = grouped.get(sample.key) ?? [];
     entries.push(sample);
@@ -452,6 +453,14 @@ export async function scanCoinbaseJupiterQuotes(
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, entries]) => [key, routeSizeSummary(entries)])
   );
+  const largestModeledEdges = [...samples]
+    .sort(
+      (left, right) =>
+        right.modeledNetEdgeBps - left.modeledNetEdgeBps ||
+        left.receivedTimestampMs - right.receivedTimestampMs ||
+        left.key.localeCompare(right.key)
+    )
+    .slice(0, 20);
   const first = samples[0]?.receivedTimestampMs;
   const last = samples.at(-1)?.receivedTimestampMs;
   const elapsedHours =
@@ -528,6 +537,7 @@ export async function scanCoinbaseJupiterQuotes(
       elapsedHours
     },
     byRouteSize,
+    largestModeledEdges,
     feeSensitivity,
     sampledPersistence: {
       caveat:
@@ -565,7 +575,7 @@ function compareQuote(
     readonly modeledNetworkFeeUsdc: number;
     readonly executionBufferBps: number;
   }
-): EdgeSample | null {
+): CexDexEdgeSample | null {
   const inputAmount = Number(event.payload.inputAmount);
   const outputAmount = Number(event.payload.outputAmount);
   if (

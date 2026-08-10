@@ -383,3 +383,17 @@ defects and exact result are documented in
 single repaired 24-hour confirmation, not an automatic seven-day extension.
 A positive public quote result would still require a reviewed shadow
 execution model before any wallet or transaction work could be considered.
+
+The repaired confirmation subsequently supplied 124,149 eligible comparisons
+over 72.49 hours of daily finalized journals. Four isolated 1,000-size quotes
+cleared the modeled 3 bp threshold, with modeled maxima of 14.09 bp buying on
+Jupiter and 12.71 bp buying on Coinbase. None remained above threshold at the
+next same-route observation, approximately 8.4 seconds later. Only eight
+comparisons were modeled non-negative across the full sample; neither 10,000
+route had a non-negative modeled result.
+
+This changes the result from "no observed anomaly" to "rare, unconfirmed
+public-quote anomaly," not to a proven edge. Passive four-route collection
+has completed its information gate. The detailed evidence and bounded
+follow-up boundary are in
+`research/repaired-jupiter-edge-screen-2026-08-10.md`.

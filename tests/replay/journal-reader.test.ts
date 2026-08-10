@@ -14,6 +14,9 @@ import {
 import { journalDirectory } from "../../src/collector/journal/path.js";
 import { JournalStreamWriter } from "../../src/collector/journal/writer.js";
 import {
+  feedStatusEventSchema
+} from "../../src/collector/schema/events.js";
+import {
   discoverClosedJournalParts,
   readMergedJournalParts
 } from "../../src/replay/journal-reader.js";
@@ -212,5 +215,69 @@ describe("unified replay journal reader", () => {
     expect(selected.positions[0]?.event.collectorRunId).toBe(
       selectedRunId
     );
+  });
+
+  it("receive-time sorts the bounded feed-status series", async () => {
+    const dataRoot = await createTestDirectory();
+    testDirectories.push(dataRoot);
+    const collectorRunId = "33333333-3333-4333-8333-333333333333";
+    const connectionId = "44444444-4444-4444-8444-444444444444";
+    const writer = new JournalStreamWriter({
+      dataRoot,
+      venue: "coinbase",
+      product: "EURC-USDC",
+      eventType: "feed_status",
+      maxPartBytes: 1024 * 1024,
+      syncEveryAppend: true,
+      now: () => receivedTimestampMs + 10_000
+    });
+    for (const [offset, ingestSequence, state] of [
+      [200, 1, "stale"],
+      [100, 2, "healthy"]
+    ] as const) {
+      await writer.append(
+        feedStatusEventSchema.parse({
+          schemaVersion: 1,
+          venue: "coinbase",
+          product: "EURC-USDC",
+          nativeProduct: "EURC-USDC",
+          sourceTimestampMs: null,
+          receivedTimestampMs: receivedTimestampMs + offset,
+          ingestSequence,
+          collectorRunId,
+          connectionId,
+          venueSequence: null,
+          source: "websocket",
+          eventType: "feed_status",
+          payload: {
+            state,
+            eligibleForResearch: state === "healthy",
+            reason: state === "healthy" ? null : "no_message_for_100ms",
+            lastGoodVenueSequence: null,
+            observedAtMs: receivedTimestampMs + offset
+          }
+        })
+      );
+    }
+    await writer.close();
+    await compressClosedJournals({ dataRoot });
+    const parts = await discoverClosedJournalParts({
+      dataRoot,
+      eventTypes: new Set(["feed_status"]),
+      preferRepresentation: "gzip"
+    });
+    const positions = [];
+    for await (const position of readMergedJournalParts(parts, {
+      collectorRunId
+    })) {
+      positions.push(position);
+    }
+
+    expect(
+      positions.map(({ event }) => event.receivedTimestampMs)
+    ).toEqual([
+      receivedTimestampMs + 100,
+      receivedTimestampMs + 200
+    ]);
   });
 });

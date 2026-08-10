@@ -173,6 +173,12 @@ describe("Coinbase/Jupiter replay screen", () => {
       ]!;
     expect(route.grossEdgeBps.maximum).toBeCloseTo(80);
     expect(route.grossEdgeBps.minimum).toBeCloseTo(-100);
+    expect(report.largestModeledEdges).toHaveLength(2);
+    expect(report.largestModeledEdges[0]).toMatchObject({
+      direction: "buy_eurc_jupiter_sell_coinbase",
+      inputAmount: "1000",
+      receivedTimestampMs: startedAtMs + 200
+    });
     expect(report.sampledPersistence.evaluatedStarts).toBe(1);
     expect(report.sampledPersistence.confirmedAtNextQuote).toBe(0);
   });
