@@ -18,7 +18,12 @@ import {
   venueSequenceSchema
 } from "./primitives.js";
 
-const sourceSchema = z.enum(["websocket", "rest", "external"]);
+const sourceSchema = z.enum([
+  "websocket",
+  "rest",
+  "external",
+  "derived"
+]);
 const bookSideSchema = z.enum(["bid", "ask"]);
 const tradeSideSchema = z.enum(["buy", "sell", "unknown"]);
 const marketStatusSchema = z.enum([
@@ -43,6 +48,7 @@ export const normalizedEventTypeSchema = z.enum([
   "book_delta",
   "trade",
   "dex_quote",
+  "cex_dex_probe",
   "trade_continuity",
   "market_status",
   "feed_status",
@@ -153,6 +159,17 @@ const dexRouteLegSchema = z.strictObject({
   percentBps: positiveSafeIntegerSchema.max(10_000)
 });
 
+const dexQuoteProbeSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("baseline")
+  }),
+  z.strictObject({
+    kind: z.literal("anomaly_follow_up"),
+    triggerRequestId: z.string().min(1).max(256),
+    followUpIndex: positiveSafeIntegerSchema.max(10)
+  })
+]);
+
 export const dexQuoteEventSchema = z.strictObject({
   ...commonEnvelopeShape,
   eventType: z.literal("dex_quote"),
@@ -186,7 +203,35 @@ export const dexQuoteEventSchema = z.strictObject({
     guaranteedPrice: z.boolean(),
     requestId: z.string().min(1).max(256),
     quoteId: z.string().min(1).max(256).nullable(),
-    routePlan: z.array(dexRouteLegSchema).min(1).max(32)
+    routePlan: z.array(dexRouteLegSchema).min(1).max(32),
+    probe: dexQuoteProbeSchema.optional()
+  })
+});
+
+export const cexDexProbeEventSchema = z.strictObject({
+  ...commonEnvelopeShape,
+  eventType: z.literal("cex_dex_probe"),
+  payload: z.strictObject({
+    probeId: z.string().min(1).max(256),
+    triggerRequestId: z.string().min(1).max(256),
+    direction: z.enum([
+      "buy_eurc_jupiter_sell_coinbase",
+      "buy_eurc_coinbase_sell_jupiter"
+    ]),
+    inputAmount: positiveDecimalStringSchema,
+    router: z.string().min(1).max(128),
+    triggerReceivedTimestampMs: utcEpochMillisecondsSchema,
+    grossEdgeBps: canonicalDecimalStringSchema,
+    modeledNetEdgeBps: canonicalDecimalStringSchema,
+    capitalUsdc: positiveDecimalStringSchema,
+    followUpCount: positiveSafeIntegerSchema.max(10),
+    minimumRequestIntervalMs: positiveSafeIntegerSchema,
+    model: z.strictObject({
+      coinbaseFeeBps: nonNegativeDecimalStringSchema,
+      modeledNetworkFeeUsdc: nonNegativeDecimalStringSchema,
+      executionBufferBps: nonNegativeDecimalStringSchema,
+      decisionThresholdBps: positiveDecimalStringSchema
+    })
   })
 });
 
@@ -257,6 +302,7 @@ export const normalizedEventSchema = z.discriminatedUnion("eventType", [
   bookDeltaEventSchema,
   tradeEventSchema,
   dexQuoteEventSchema,
+  cexDexProbeEventSchema,
   tradeContinuityEventSchema,
   marketStatusEventSchema,
   feedStatusEventSchema,

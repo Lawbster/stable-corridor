@@ -40,50 +40,38 @@ const absolutePathSchema = z
 
 const coinbaseProductsSchema = z
   .array(z.enum(COINBASE_PUBLIC_PRODUCTS))
-  .length(COINBASE_PUBLIC_PRODUCTS.length)
+  .min(1)
+  .max(COINBASE_PUBLIC_PRODUCTS.length)
   .refine(
-    (products) =>
-      new Set(products).size === COINBASE_PUBLIC_PRODUCTS.length &&
-      COINBASE_PUBLIC_PRODUCTS.every((product) =>
-        products.includes(product)
-      ),
-    "Expected each approved Coinbase product exactly once"
+    (products) => new Set(products).size === products.length,
+    "Expected unique approved Coinbase products"
   );
 
 const binanceProductsSchema = z
   .array(z.enum(BINANCE_PUBLIC_PRODUCTS))
-  .length(BINANCE_PUBLIC_PRODUCTS.length)
+  .min(1)
+  .max(BINANCE_PUBLIC_PRODUCTS.length)
   .refine(
-    (products) =>
-      new Set(products).size === BINANCE_PUBLIC_PRODUCTS.length &&
-      BINANCE_PUBLIC_PRODUCTS.every((product) =>
-        products.includes(product)
-      ),
-    "Expected each approved Binance product exactly once"
+    (products) => new Set(products).size === products.length,
+    "Expected unique approved Binance products"
   );
 
 const bybitProductsSchema = z
   .array(z.enum(BYBIT_PUBLIC_PRODUCTS))
-  .length(BYBIT_PUBLIC_PRODUCTS.length)
+  .min(1)
+  .max(BYBIT_PUBLIC_PRODUCTS.length)
   .refine(
-    (products) =>
-      new Set(products).size === BYBIT_PUBLIC_PRODUCTS.length &&
-      BYBIT_PUBLIC_PRODUCTS.every((product) =>
-        products.includes(product)
-      ),
-    "Expected each approved Bybit product exactly once"
+    (products) => new Set(products).size === products.length,
+    "Expected unique approved Bybit products"
   );
 
 const krakenProductsSchema = z
   .array(z.enum(KRAKEN_PUBLIC_PRODUCTS))
-  .length(KRAKEN_PUBLIC_PRODUCTS.length)
+  .min(1)
+  .max(KRAKEN_PUBLIC_PRODUCTS.length)
   .refine(
-    (products) =>
-      new Set(products).size === KRAKEN_PUBLIC_PRODUCTS.length &&
-      KRAKEN_PUBLIC_PRODUCTS.every((product) =>
-        products.includes(product)
-      ),
-    "Expected each approved Kraken product exactly once"
+    (products) => new Set(products).size === products.length,
+    "Expected unique approved Kraken products"
   );
 
 const jupiterInputAmountsSchema = z
@@ -97,6 +85,14 @@ const jupiterInputAmountsSchema = z
       ),
     "Expected each approved Jupiter input amount exactly once"
   );
+
+const anomalyProbeSchema = z.strictObject({
+  coinbaseFeeBps: z.number().finite().nonnegative().max(100),
+  modeledNetworkFeeUsdc: z.number().finite().nonnegative().max(10),
+  executionBufferBps: z.number().finite().nonnegative().max(100),
+  decisionThresholdBps: z.number().finite().positive().max(100),
+  followUpCount: z.literal(3)
+});
 
 export const collectorConfigSchema = z.strictObject({
   schemaVersion: schemaVersionSchema,
@@ -126,14 +122,14 @@ export const collectorConfigSchema = z.strictObject({
     staleAfterMs: positiveSafeIntegerSchema,
     maxTrackedLevelsPerSide: positiveSafeIntegerSchema.max(20_000),
     maxFrameBytes: positiveSafeIntegerSchema
-  }),
+  }).optional(),
   binance: z.strictObject({
     products: binanceProductsSchema,
     staleAfterMs: positiveSafeIntegerSchema,
     maxTrackedLevelsPerSide: positiveSafeIntegerSchema.max(20_000),
     maxBufferedDepthEvents: positiveSafeIntegerSchema.max(100_000),
     maxFrameBytes: positiveSafeIntegerSchema
-  }),
+  }).optional(),
   bybit: z.strictObject({
     products: bybitProductsSchema,
     staleAfterMs: positiveSafeIntegerSchema,
@@ -141,14 +137,14 @@ export const collectorConfigSchema = z.strictObject({
     maxRecentTradeIds: positiveSafeIntegerSchema.max(100_000),
     maxFrameBytes: positiveSafeIntegerSchema,
     pingIntervalMs: positiveSafeIntegerSchema
-  }),
+  }).optional(),
   kraken: z.strictObject({
     products: krakenProductsSchema,
     depth: z.literal(KRAKEN_BOOK_DEPTH),
     staleAfterMs: positiveSafeIntegerSchema,
     maxRecentTradeIds: positiveSafeIntegerSchema.max(100_000),
     maxFrameBytes: positiveSafeIntegerSchema
-  }),
+  }).optional(),
   jupiter: z
     .strictObject({
       product: z.literal(JUPITER_PUBLIC_PRODUCT),
@@ -157,10 +153,33 @@ export const collectorConfigSchema = z.strictObject({
         positiveSafeIntegerSchema.min(2_000),
       retryDelayMs: positiveSafeIntegerSchema,
       staleAfterMs: positiveSafeIntegerSchema,
-      maxResponseBytes: positiveSafeIntegerSchema.max(1_048_576)
+      maxResponseBytes: positiveSafeIntegerSchema.max(1_048_576),
+      anomalyProbe: anomalyProbeSchema.optional()
     })
     .optional()
-});
+})
+  .refine(
+    (config) =>
+      config.coinbase !== undefined ||
+      config.binance !== undefined ||
+      config.bybit !== undefined ||
+      config.kraken !== undefined ||
+      config.jupiter !== undefined,
+    "At least one public venue must be configured"
+  )
+  .superRefine((config, context) => {
+    if (
+      config.jupiter?.anomalyProbe !== undefined &&
+      config.coinbase?.products.includes("EURC-USDC") !== true
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["jupiter", "anomalyProbe"],
+        message:
+          "The Jupiter anomaly probe requires Coinbase EURC-USDC"
+      });
+    }
+  });
 
 export type CollectorConfig = z.infer<typeof collectorConfigSchema>;
 

@@ -20,6 +20,7 @@ const eventTypes = new Set([
   "book_delta",
   "trade",
   "dex_quote",
+  "cex_dex_probe",
   "trade_continuity",
   "market_status",
   "feed_status",

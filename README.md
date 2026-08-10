@@ -6,13 +6,10 @@ No trading bot exists. No capital, API keys, authenticated exchange access, or l
 
 ## Current phase
 
-The bounded Stage B public collector completed its initial 72-hour
-validation window and remains deployed.
-Coinbase, Binance, Bybit, and Kraken adapters collect only unauthenticated
-public metadata, L2 books, trades, and health inputs. The runner writes one
-globally ordered deterministic journal, publishes atomic health, creates
-60-second book checkpoints, reconnects failed venue sessions, and stops on
-journal, health, or storage failure.
+The broad Stage B public collection gate is complete, stopped, and retained
+as a verified gzip-only VPS archive. The original multi-CEX maker thesis is
+an economic no-go. A bounded public-only anomaly persistence probe is the
+only approved continuation.
 
 A conventional FX adapter, shadow decisions, and execution remain
 unimplemented. No authenticated client or trading path exists.
@@ -23,12 +20,11 @@ methods and interpretation are in
 `research/initial-edge-screen-2026-08-06.md` and
 `research/free-history-edge-screen-2026-08-06.md`.
 
-A separate opt-in experiment collects quote-only native Solana `EURC/USDC`
-routes from Jupiter at 1,000 and 10,000 units. Its first 9.47-hour screen
-found no gross 1 bp observation; a bounded response/reconnect repair is ready
-for one clean 24-hour confirmation. It joins quotes to contemporaneous
-Coinbase depth in offline replay and has no wallet, transaction, or execution
-path.
+The narrowed configuration collects only Coinbase `EURC-USDC` and quote-only
+native Solana `EURC/USDC` routes from Jupiter at 1,000 and 10,000 units. A
+modeled 3 bp baseline anomaly schedules three same-route public requotes at
+the next rate-limited intervals and journals the decision for deterministic
+replay. It has no API key, wallet, taker, transaction, or execution path.
 
 ## Repository map
 
@@ -37,7 +33,7 @@ config/                 Reviewed example configuration
 src/collector/          Public-only collection pipeline
 src/venues/             CEX public adapters and optional Jupiter quote adapter
 src/fair-value/         Future fair-value derivation
-src/opportunity/        Future shadow opportunity policy
+src/opportunity/        Offline screens and bounded public probe policy
 src/replay/             Deterministic no-look-ahead replay
 src/inventory/          Finite simulated inventory
 src/risk/               Research and future runtime safety rules
@@ -61,7 +57,7 @@ There is intentionally no `src/execution/`.
 6. Review the Bybit public API contract.
 7. Review the Kraken public API contract.
 8. Review the bounded collector pilot runbook.
-9. Review the Jupiter public quote contract and experiment runbook.
+9. Review the Jupiter public quote contract and anomaly-probe runbook.
 10. Record only non-sensitive account findings in `research/access-audit.md`.
 
 The economic thesis and full project boundaries are in
@@ -81,7 +77,7 @@ The equivalent A4 Kraken rules are in
 
 The quote-only Solana experiment boundary is in
 `research/jupiter-public-api-contract.md`; deployment and analysis are in
-`docs/operations/jupiter-shadow.md`.
+`docs/operations/jupiter-anomaly-probe.md`.
 
 The install, named PM2 operations, rollback, and 72-hour measurement steps
 are in `docs/operations/collector-pilot.md`.
@@ -89,9 +85,9 @@ are in `docs/operations/collector-pilot.md`.
 The pull-only WSL runtime mirror is documented in
 `docs/operations/local-rsync.md`.
 
-Verified compression and the manual, checksum-gated source-reclamation
-workflow for immutable closed journals are documented in
-`docs/operations/journal-compression.md`.
+Verified compression, the optional daily user-level timer, and the manual,
+checksum-gated source-reclamation workflow for immutable closed journals are
+documented in `docs/operations/journal-compression.md`.
 
 ## Development gates
 

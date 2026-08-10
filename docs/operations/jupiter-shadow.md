@@ -1,5 +1,10 @@
 # Jupiter public quote experiment
 
+> **Historical runbook:** this documents the completed passive 14-feed
+> collection gate. Do not use it for a new deployment. The approved narrowed
+> two-feed continuation is in
+> `docs/operations/jupiter-anomaly-probe.md`.
+
 ## Boundary
 
 This experiment adds one optional public Jupiter feed to the existing

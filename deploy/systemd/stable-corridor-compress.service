@@ -1,0 +1,15 @@
+[Unit]
+Description=Stable Corridor verified closed-journal compression
+Documentation=file:///opt/stable-corridor/docs/operations/journal-compression.md
+ConditionPathExists=/opt/stable-corridor/dist/collector/compress-entrypoint.js
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/stable-corridor
+ExecStart=/usr/bin/node /opt/stable-corridor/dist/collector/compress-entrypoint.js --data-root /var/lib/stable-corridor/data --max-parts 100
+Nice=19
+IOSchedulingClass=idle
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+TimeoutStartSec=30min

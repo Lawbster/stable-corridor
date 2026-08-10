@@ -30,6 +30,16 @@ export interface JupiterQuoteRequest {
   readonly inputAmountAtomic: string;
 }
 
+export type JupiterQuoteRequestContext =
+  | {
+      readonly kind: "baseline";
+    }
+  | {
+      readonly kind: "anomaly_follow_up";
+      readonly triggerRequestId: string;
+      readonly followUpIndex: number;
+    };
+
 export function decimalToAtomic(
   amount: JupiterApprovedInputAmount,
   decimals = 6
@@ -64,4 +74,3 @@ export function jupiterQuoteRequestKey(
     request.inputAmount
   );
 }
-

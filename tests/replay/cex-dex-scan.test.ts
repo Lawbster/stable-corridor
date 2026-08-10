@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   bookDeltaEventSchema,
+  cexDexProbeEventSchema,
   dexQuoteEventSchema,
   feedStatusEventSchema,
   type NormalizedEvent
@@ -56,7 +57,14 @@ function healthyFeed(receivedTimestampMs: number): NormalizedEvent {
 function quote(
   receivedTimestampMs: number,
   outputAmount: string,
-  ingestSequence: number
+  ingestSequence: number,
+  probe?:
+    | { readonly kind: "baseline" }
+    | {
+        readonly kind: "anomaly_follow_up";
+        readonly triggerRequestId: string;
+        readonly followUpIndex: number;
+      }
 ): NormalizedEvent {
   const outputAmountAtomic = (
     BigInt(outputAmount) * 1_000_000n
@@ -94,6 +102,7 @@ function quote(
       guaranteedPrice: true,
       requestId: `request-${ingestSequence}`,
       quoteId: null,
+      ...(probe === undefined ? {} : { probe }),
       routePlan: [
         {
           ammKey: "test-amm",
@@ -216,5 +225,108 @@ describe("Coinbase/Jupiter replay screen", () => {
       ]!.grossEdgeBps;
     expect(gross.minimum).toBeCloseTo(80);
     expect(gross.maximum).toBeCloseTo(80);
+  });
+
+  it("reports explicitly linked anomaly follow-ups without skewing baseline distributions", async () => {
+    const checkpoint = makeBookCheckpointEvent({
+      collectorRunId,
+      connectionId,
+      receivedTimestampMs: startedAtMs + 100,
+      bidPrice: "1.12",
+      askPrice: "1.121",
+      bidQuantity: "2000",
+      askQuantity: "2000"
+    });
+    const triggerQuote = quote(
+      startedAtMs + 200,
+      "900",
+      3,
+      { kind: "baseline" }
+    );
+    const probe = cexDexProbeEventSchema.parse({
+      ...envelope("jupiter", startedAtMs + 200, 4),
+      source: "derived",
+      eventType: "cex_dex_probe",
+      payload: {
+        probeId: "request-3",
+        triggerRequestId: "request-3",
+        direction: "buy_eurc_jupiter_sell_coinbase",
+        inputAmount: "1000",
+        router: "jupiterz",
+        triggerReceivedTimestampMs: startedAtMs + 200,
+        grossEdgeBps: "80",
+        modeledNetEdgeBps: "77.9",
+        capitalUsdc: "1000",
+        followUpCount: 3,
+        minimumRequestIntervalMs: 2_100,
+        model: {
+          coinbaseFeeBps: "0.1",
+          modeledNetworkFeeUsdc: "0.01",
+          executionBufferBps: "2",
+          decisionThresholdBps: "3"
+        }
+      }
+    });
+    const followUps = [
+      quote(startedAtMs + 2_300, "900", 5, {
+        kind: "anomaly_follow_up",
+        triggerRequestId: "request-3",
+        followUpIndex: 1
+      }),
+      quote(startedAtMs + 4_400, "880", 6, {
+        kind: "anomaly_follow_up",
+        triggerRequestId: "request-3",
+        followUpIndex: 2
+      }),
+      quote(startedAtMs + 6_500, "900", 7, {
+        kind: "anomaly_follow_up",
+        triggerRequestId: "request-3",
+        followUpIndex: 3
+      })
+    ];
+
+    const report = await scanCoinbaseJupiterQuotes(
+      positions([
+        checkpoint,
+        healthyFeed(startedAtMs + 110),
+        triggerQuote,
+        probe,
+        ...followUps
+      ]),
+      {
+        collectorRunId,
+        minimumSamplesPerRouteSize: 0,
+        minimumObservationHours: 0
+      }
+    );
+
+    expect(report.observations).toMatchObject({
+      totalJupiterQuotes: 4,
+      eligibleComparisons: 4,
+      eligibleBaselineComparisons: 1,
+      eligibleAnomalyFollowUpComparisons: 3
+    });
+    expect(
+      report.byRouteSize["buy_eurc_jupiter_sell_coinbase|1000"]
+        ?.samples
+    ).toBe(1);
+    expect(report.triggeredRequotes).toMatchObject({
+      scheduledProbes: 1,
+      completedProbes: 1,
+      firstFollowUpsEvaluated: 1,
+      confirmedAtFirstFollowUp: 1,
+      confirmedThroughAllFollowUps: 0,
+      missingTriggerQuote: 0,
+      probes: [
+        {
+          probeId: "request-3",
+          expectedFollowUps: 3,
+          observedEligibleFollowUps: 3,
+          complete: true,
+          firstFollowUpConfirmed: true,
+          confirmedThroughAllFollowUps: false
+        }
+      ]
+    });
   });
 });

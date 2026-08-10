@@ -8,6 +8,10 @@ import {
   tryPublishCollectorHealthAtomic
 } from "../../health/atomic-publisher.js";
 import type { CollectorHealth } from "../../health/schema.js";
+import {
+  CexDexAnomalyProbe,
+  type CexDexProbeTrigger
+} from "../../opportunity/cex-dex-probe.js";
 import { BinancePublicAdapter } from "../../venues/binance/adapter.js";
 import { binanceCanonicalProduct } from "../../venues/binance/constants.js";
 import {
@@ -92,11 +96,12 @@ export class PublicCollectorRunner {
   readonly #startedAtMs: number;
   readonly #configHash: string;
   readonly #sink: CollectorEventSink;
-  readonly #coinbase: CoinbasePublicAdapter;
-  readonly #binance: BinancePublicAdapter;
-  readonly #bybit: BybitPublicAdapter;
-  readonly #kraken: KrakenPublicAdapter;
+  readonly #coinbase: CoinbasePublicAdapter | undefined;
+  readonly #binance: BinancePublicAdapter | undefined;
+  readonly #bybit: BybitPublicAdapter | undefined;
+  readonly #kraken: KrakenPublicAdapter | undefined;
   readonly #jupiter: JupiterPublicAdapter | undefined;
+  readonly #anomalyProbe: CexDexAnomalyProbe | undefined;
   readonly #sessions = new Map<VenueName, ActiveSession>();
   readonly #connectInProgress = new Set<VenueName>();
   readonly #reconnectTimers = new Map<
@@ -136,40 +141,52 @@ export class PublicCollectorRunner {
       maxPartBytes: this.#config.journal.maxPartBytes,
       syncEveryAppend: this.#config.journal.syncEveryAppend
     });
-    this.#coinbase = new CoinbasePublicAdapter({
-      products: this.#config.coinbase.products,
-      collectorRunId: this.#collectorRunId,
-      depth: this.#config.book.depth,
-      maxTrackedLevelsPerSide:
-        this.#config.coinbase.maxTrackedLevelsPerSide,
-      staleAfterMs: this.#config.coinbase.staleAfterMs
-    });
-    this.#binance = new BinancePublicAdapter({
-      products: this.#config.binance.products,
-      collectorRunId: this.#collectorRunId,
-      depth: this.#config.book.depth,
-      maxTrackedLevelsPerSide:
-        this.#config.binance.maxTrackedLevelsPerSide,
-      maxBufferedDepthEvents:
-        this.#config.binance.maxBufferedDepthEvents,
-      staleAfterMs: this.#config.binance.staleAfterMs
-    });
-    this.#bybit = new BybitPublicAdapter({
-      products: this.#config.bybit.products,
-      collectorRunId: this.#collectorRunId,
-      depth: this.#config.book.depth,
-      maxTrackedLevelsPerSide:
-        this.#config.bybit.maxTrackedLevelsPerSide,
-      maxRecentTradeIds: this.#config.bybit.maxRecentTradeIds,
-      staleAfterMs: this.#config.bybit.staleAfterMs
-    });
-    this.#kraken = new KrakenPublicAdapter({
-      products: this.#config.kraken.products,
-      collectorRunId: this.#collectorRunId,
-      depth: this.#config.kraken.depth,
-      maxRecentTradeIds: this.#config.kraken.maxRecentTradeIds,
-      staleAfterMs: this.#config.kraken.staleAfterMs
-    });
+    this.#coinbase =
+      this.#config.coinbase === undefined
+        ? undefined
+        : new CoinbasePublicAdapter({
+            products: this.#config.coinbase.products,
+            collectorRunId: this.#collectorRunId,
+            depth: this.#config.book.depth,
+            maxTrackedLevelsPerSide:
+              this.#config.coinbase.maxTrackedLevelsPerSide,
+            staleAfterMs: this.#config.coinbase.staleAfterMs
+          });
+    this.#binance =
+      this.#config.binance === undefined
+        ? undefined
+        : new BinancePublicAdapter({
+            products: this.#config.binance.products,
+            collectorRunId: this.#collectorRunId,
+            depth: this.#config.book.depth,
+            maxTrackedLevelsPerSide:
+              this.#config.binance.maxTrackedLevelsPerSide,
+            maxBufferedDepthEvents:
+              this.#config.binance.maxBufferedDepthEvents,
+            staleAfterMs: this.#config.binance.staleAfterMs
+          });
+    this.#bybit =
+      this.#config.bybit === undefined
+        ? undefined
+        : new BybitPublicAdapter({
+            products: this.#config.bybit.products,
+            collectorRunId: this.#collectorRunId,
+            depth: this.#config.book.depth,
+            maxTrackedLevelsPerSide:
+              this.#config.bybit.maxTrackedLevelsPerSide,
+            maxRecentTradeIds: this.#config.bybit.maxRecentTradeIds,
+            staleAfterMs: this.#config.bybit.staleAfterMs
+          });
+    this.#kraken =
+      this.#config.kraken === undefined
+        ? undefined
+        : new KrakenPublicAdapter({
+            products: this.#config.kraken.products,
+            collectorRunId: this.#collectorRunId,
+            depth: this.#config.kraken.depth,
+            maxRecentTradeIds: this.#config.kraken.maxRecentTradeIds,
+            staleAfterMs: this.#config.kraken.staleAfterMs
+          });
     this.#jupiter =
       this.#config.jupiter === undefined
         ? undefined
@@ -177,6 +194,15 @@ export class PublicCollectorRunner {
             collectorRunId: this.#collectorRunId,
             inputAmounts: this.#config.jupiter.inputAmounts,
             staleAfterMs: this.#config.jupiter.staleAfterMs
+          });
+    const probe = this.#config.jupiter?.anomalyProbe;
+    this.#anomalyProbe =
+      probe === undefined || this.#config.jupiter === undefined
+        ? undefined
+        : new CexDexAnomalyProbe({
+            ...probe,
+            minimumRequestIntervalMs:
+              this.#config.jupiter.minimumRequestIntervalMs
           });
     this.#waitPromise = new Promise((resolve) => {
       this.#resolveWait = resolve;
@@ -239,12 +265,19 @@ export class PublicCollectorRunner {
       void this.#checkpointTick();
     }, this.#config.book.checkpointIntervalMs);
 
-    const venues: VenueName[] = [
-      "coinbase",
-      "binance",
-      "bybit",
-      "kraken"
-    ];
+    const venues: VenueName[] = [];
+    if (this.#coinbase !== undefined) {
+      venues.push("coinbase");
+    }
+    if (this.#binance !== undefined) {
+      venues.push("binance");
+    }
+    if (this.#bybit !== undefined) {
+      venues.push("bybit");
+    }
+    if (this.#kraken !== undefined) {
+      venues.push("kraken");
+    }
     if (this.#jupiter !== undefined) {
       venues.push("jupiter");
     }
@@ -368,14 +401,19 @@ export class PublicCollectorRunner {
   }
 
   async #connectCoinbase(): Promise<void> {
+    const adapter = this.#coinbase;
+    const config = this.#config.coinbase;
+    if (adapter === undefined || config === undefined) {
+      throw new Error("Coinbase collector is not configured");
+    }
     const connectionId = randomUUID();
     const started = this.#now();
     await this.#append(
-      this.#coinbase.beginConnection(connectionId, started)
+      adapter.beginConnection(connectionId, started)
     );
     try {
       const metadata = await fetchCoinbasePublicProductsMetadata(
-        this.#config.coinbase.products,
+        config.products,
         { signal: this.#restSignal() }
       );
       await this.#append(
@@ -390,12 +428,12 @@ export class PublicCollectorRunner {
       );
       let session: CoinbasePublicWebSocketSession;
       session = new CoinbasePublicWebSocketSession({
-        products: this.#config.coinbase.products,
-        maxFrameBytes: this.#config.coinbase.maxFrameBytes,
+        products: config.products,
+        maxFrameBytes: config.maxFrameBytes,
         onFrame: async (frame, received) => {
           await this.#handleVenueEvents(
             "coinbase",
-            this.#coinbase.ingest(frame, received)
+            adapter.ingest(frame, received)
           );
         },
         onClose: (code, reason) => {
@@ -411,43 +449,45 @@ export class PublicCollectorRunner {
         }
       });
       this.#activateSession("coinbase", session, (time, reason) =>
-        this.#coinbase.endConnection(time, reason)
+        adapter.endConnection(time, reason)
       );
     } catch (error) {
       await this.#append(
-        this.#coinbase.endConnection(
-          this.#now(),
-          "connection_setup_failed"
-        )
+        adapter.endConnection(this.#now(), "connection_setup_failed")
       );
       throw error;
     }
   }
 
   async #connectBinance(): Promise<void> {
+    const adapter = this.#binance;
+    const config = this.#config.binance;
+    if (adapter === undefined || config === undefined) {
+      throw new Error("Binance collector is not configured");
+    }
     const connectionId = randomUUID();
     await this.#append(
-      this.#binance.beginConnection(connectionId, this.#now())
+      adapter.beginConnection(connectionId, this.#now())
     );
     try {
       const exchangeInfo = await fetchBinancePublicExchangeInfo(
-        this.#config.binance.products,
+        config.products,
         { signal: this.#restSignal() }
       );
       await this.#append(
-        this.#binance.ingestExchangeInfo(
+        adapter.ingestExchangeInfo(
           exchangeInfo,
           this.#now()
         )
       );
       let session: BinancePublicWebSocketSession;
       session = new BinancePublicWebSocketSession({
-        products: this.#config.binance.products,
-        maxFrameBytes: this.#config.binance.maxFrameBytes,
+        products: config.products,
+        maxFrameBytes: config.maxFrameBytes,
         onFrame: async (frame, received) => {
           await this.#handleVenueEvents(
             "binance",
-            this.#binance.ingest(frame, received)
+            adapter.ingest(frame, received)
           );
         },
         onOpen: () => {
@@ -469,14 +509,11 @@ export class PublicCollectorRunner {
         }
       });
       this.#activateSession("binance", session, (time, reason) =>
-        this.#binance.endConnection(time, reason)
+        adapter.endConnection(time, reason)
       );
     } catch (error) {
       await this.#append(
-        this.#binance.endConnection(
-          this.#now(),
-          "connection_setup_failed"
-        )
+        adapter.endConnection(this.#now(), "connection_setup_failed")
       );
       throw error;
     }
@@ -485,7 +522,12 @@ export class PublicCollectorRunner {
   async #bootstrapBinance(
     session: BinancePublicWebSocketSession
   ): Promise<void> {
-    for (const product of this.#config.binance.products) {
+    const adapter = this.#binance;
+    const config = this.#config.binance;
+    if (adapter === undefined || config === undefined) {
+      throw new Error("Binance collector is not configured");
+    }
+    for (const product of config.products) {
       let synchronized = false;
       for (let attempt = 0; attempt < 5; attempt += 1) {
         const snapshot = await fetchBinancePublicDepthSnapshot(product, {
@@ -494,13 +536,13 @@ export class PublicCollectorRunner {
         await session.drain();
         await this.#handleVenueEvents(
           "binance",
-          this.#binance.applyDepthSnapshot(
+          adapter.applyDepthSnapshot(
             product,
             snapshot,
             this.#now()
           )
         );
-        const diagnostic = this.#binance
+        const diagnostic = adapter
           .diagnostics()
           .products.find((candidate) => candidate.product === product);
         if (diagnostic?.state === "gapped") {
@@ -520,19 +562,24 @@ export class PublicCollectorRunner {
   }
 
   async #connectBybit(): Promise<void> {
+    const adapter = this.#bybit;
+    const config = this.#config.bybit;
+    if (adapter === undefined || config === undefined) {
+      throw new Error("Bybit collector is not configured");
+    }
     const connectionId = randomUUID();
     await this.#append(
-      this.#bybit.beginConnection(connectionId, this.#now())
+      adapter.beginConnection(connectionId, this.#now())
     );
     try {
       const metadata = await fetchBybitPublicInstruments(
-        this.#config.bybit.products,
+        config.products,
         { signal: this.#restSignal() }
       );
       for (let index = 0; index < metadata.length; index += 1) {
         await this.#append(
-          this.#bybit.ingestInstrument(
-            this.#config.bybit.products[index]!,
+          adapter.ingestInstrument(
+            config.products[index]!,
             metadata[index],
             this.#now()
           )
@@ -540,13 +587,13 @@ export class PublicCollectorRunner {
       }
       let session: BybitPublicWebSocketSession;
       session = new BybitPublicWebSocketSession({
-        products: this.#config.bybit.products,
-        maxFrameBytes: this.#config.bybit.maxFrameBytes,
-        pingIntervalMs: this.#config.bybit.pingIntervalMs,
+        products: config.products,
+        maxFrameBytes: config.maxFrameBytes,
+        pingIntervalMs: config.pingIntervalMs,
         onFrame: async (frame, received) => {
           await this.#handleVenueEvents(
             "bybit",
-            this.#bybit.ingest(frame, received)
+            adapter.ingest(frame, received)
           );
         },
         onClose: (code, reason) => {
@@ -557,40 +604,42 @@ export class PublicCollectorRunner {
         }
       });
       this.#activateSession("bybit", session, (time, reason) =>
-        this.#bybit.endConnection(time, reason)
+        adapter.endConnection(time, reason)
       );
     } catch (error) {
       await this.#append(
-        this.#bybit.endConnection(
-          this.#now(),
-          "connection_setup_failed"
-        )
+        adapter.endConnection(this.#now(), "connection_setup_failed")
       );
       throw error;
     }
   }
 
   async #connectKraken(): Promise<void> {
+    const adapter = this.#kraken;
+    const config = this.#config.kraken;
+    if (adapter === undefined || config === undefined) {
+      throw new Error("Kraken collector is not configured");
+    }
     const connectionId = randomUUID();
     await this.#append(
-      this.#kraken.beginConnection(connectionId, this.#now())
+      adapter.beginConnection(connectionId, this.#now())
     );
     try {
       const metadata = await fetchKrakenPublicAssetPairs(
-        this.#config.kraken.products,
+        config.products,
         { signal: this.#restSignal() }
       );
       await this.#append(
-        this.#kraken.ingestAssetPairs(metadata, this.#now())
+        adapter.ingestAssetPairs(metadata, this.#now())
       );
       let session: KrakenPublicWebSocketSession;
       session = new KrakenPublicWebSocketSession({
-        products: this.#config.kraken.products,
-        maxFrameBytes: this.#config.kraken.maxFrameBytes,
+        products: config.products,
+        maxFrameBytes: config.maxFrameBytes,
         onFrame: async (frame, received) => {
           await this.#handleVenueEvents(
             "kraken",
-            this.#kraken.ingest(frame, received)
+            adapter.ingest(frame, received)
           );
         },
         onClose: (code, reason) => {
@@ -601,14 +650,11 @@ export class PublicCollectorRunner {
         }
       });
       this.#activateSession("kraken", session, (time, reason) =>
-        this.#kraken.endConnection(time, reason)
+        adapter.endConnection(time, reason)
       );
     } catch (error) {
       await this.#append(
-        this.#kraken.endConnection(
-          this.#now(),
-          "connection_setup_failed"
-        )
+        adapter.endConnection(this.#now(), "connection_setup_failed")
       );
       throw error;
     }
@@ -636,17 +682,31 @@ export class PublicCollectorRunner {
           request,
           response,
           requestStartedAtMs,
-          receivedTimestampMs
+          receivedTimestampMs,
+          context
         ) => {
-          await this.#handleVenueEvents(
+          const trigger = await this.#handleVenueEvents(
             "jupiter",
             adapter.ingestQuote({
               request,
               response,
               requestStartedAtMs,
-              receivedTimestampMs
+              receivedTimestampMs,
+              context
             })
           );
+          if (trigger !== null) {
+            session.scheduleAnomalyFollowUps(
+              request,
+              trigger.triggerRequestId,
+              trigger.followUpCount
+            );
+            this.#log(
+              `jupiter anomaly follow-up scheduled ` +
+                `request=${trigger.triggerRequestId} ` +
+                `count=${trigger.followUpCount}`
+            );
+          }
         },
         onFailure: async (error, receivedTimestampMs) => {
           this.#log(`jupiter public quote failure: ${error.message}`);
@@ -690,9 +750,14 @@ export class PublicCollectorRunner {
   async #handleVenueEvents(
     venue: VenueName,
     events: readonly NormalizedEvent[]
-  ): Promise<void> {
+  ): Promise<CexDexProbeTrigger | null> {
+    let trigger: CexDexProbeTrigger | null = null;
     try {
       await this.#append(events);
+      trigger = this.#anomalyProbe?.observe(events) ?? null;
+      if (trigger !== null) {
+        await this.#append([trigger.event]);
+      }
     } catch (error) {
       void this.stop("journal_failure", 1);
       throw error;
@@ -716,6 +781,7 @@ export class PublicCollectorRunner {
           "feed_recovery_required"
         );
     }
+    return trigger;
   }
 
   async #handleClose(
@@ -758,21 +824,36 @@ export class PublicCollectorRunner {
       return;
     }
     const now = this.#now();
-    const checks: Promise<void>[] = [
-      this.#handleVenueEvents(
-        "coinbase",
-        this.#coinbase.checkStaleness(now)
-      ),
-      this.#handleVenueEvents(
-        "binance",
-        this.#binance.checkStaleness(now)
-      ),
-      this.#handleVenueEvents("bybit", this.#bybit.checkStaleness(now)),
-      this.#handleVenueEvents(
-        "kraken",
-        this.#kraken.checkStaleness(now)
-      )
-    ];
+    const checks: Promise<CexDexProbeTrigger | null>[] = [];
+    if (this.#coinbase !== undefined) {
+      checks.push(
+        this.#handleVenueEvents(
+          "coinbase",
+          this.#coinbase.checkStaleness(now)
+        )
+      );
+    }
+    if (this.#binance !== undefined) {
+      checks.push(
+        this.#handleVenueEvents(
+          "binance",
+          this.#binance.checkStaleness(now)
+        )
+      );
+    }
+    if (this.#bybit !== undefined) {
+      checks.push(
+        this.#handleVenueEvents("bybit", this.#bybit.checkStaleness(now))
+      );
+    }
+    if (this.#kraken !== undefined) {
+      checks.push(
+        this.#handleVenueEvents(
+          "kraken",
+          this.#kraken.checkStaleness(now)
+        )
+      );
+    }
     if (this.#jupiter !== undefined) {
       checks.push(
         this.#handleVenueEvents(
@@ -825,18 +906,34 @@ export class PublicCollectorRunner {
       return;
     }
     const now = this.#now();
-    await Promise.all([
-      this.#handleVenueEvents(
-        "coinbase",
-        this.#coinbase.checkpoint(now)
-      ),
-      this.#handleVenueEvents(
-        "binance",
-        this.#binance.checkpoint(now)
-      ),
-      this.#handleVenueEvents("bybit", this.#bybit.checkpoint(now)),
-      this.#handleVenueEvents("kraken", this.#kraken.checkpoint(now))
-    ]).catch((error: unknown) => {
+    const checkpoints: Promise<CexDexProbeTrigger | null>[] = [];
+    if (this.#coinbase !== undefined) {
+      checkpoints.push(
+        this.#handleVenueEvents(
+          "coinbase",
+          this.#coinbase.checkpoint(now)
+        )
+      );
+    }
+    if (this.#binance !== undefined) {
+      checkpoints.push(
+        this.#handleVenueEvents(
+          "binance",
+          this.#binance.checkpoint(now)
+        )
+      );
+    }
+    if (this.#bybit !== undefined) {
+      checkpoints.push(
+        this.#handleVenueEvents("bybit", this.#bybit.checkpoint(now))
+      );
+    }
+    if (this.#kraken !== undefined) {
+      checkpoints.push(
+        this.#handleVenueEvents("kraken", this.#kraken.checkpoint(now))
+      );
+    }
+    await Promise.all(checkpoints).catch((error: unknown) => {
       const reason = error instanceof Error ? error.message : String(error);
       this.#log(`periodic checkpoint failed: ${reason}`);
       void this.stop("checkpoint_failure", 1);
@@ -902,57 +999,65 @@ export class PublicCollectorRunner {
 
   #feedDiagnostics(): readonly FeedDiagnostic[] {
     const output: FeedDiagnostic[] = [];
-    const coinbase = this.#coinbase.diagnostics();
-    for (const product of coinbase.products) {
-      output.push({
-        venue: "coinbase",
-        product: product.product,
-        connectionState: product.state,
-        venueSequence: product.lastGoodVenueSequence,
-        gapCount: product.gapCount,
-        reconnectCount: coinbase.reconnectCount,
-        crossedBookCount: product.crossedBookCount,
-        eligibleForResearch: product.state === "healthy"
-      });
+    const coinbase = this.#coinbase?.diagnostics();
+    if (coinbase !== undefined) {
+      for (const product of coinbase.products) {
+        output.push({
+          venue: "coinbase",
+          product: product.product,
+          connectionState: product.state,
+          venueSequence: product.lastGoodVenueSequence,
+          gapCount: product.gapCount,
+          reconnectCount: coinbase.reconnectCount,
+          crossedBookCount: product.crossedBookCount,
+          eligibleForResearch: product.state === "healthy"
+        });
+      }
     }
-    const binance = this.#binance.diagnostics();
-    for (const product of binance.products) {
-      output.push({
-        venue: "binance",
-        product: binanceCanonicalProduct(product.product),
-        connectionState: product.state,
-        venueSequence: product.lastGoodVenueSequence,
-        gapCount: product.gapCount,
-        reconnectCount: binance.reconnectCount,
-        crossedBookCount: product.crossedBookCount,
-        eligibleForResearch: product.state === "healthy"
-      });
+    const binance = this.#binance?.diagnostics();
+    if (binance !== undefined) {
+      for (const product of binance.products) {
+        output.push({
+          venue: "binance",
+          product: binanceCanonicalProduct(product.product),
+          connectionState: product.state,
+          venueSequence: product.lastGoodVenueSequence,
+          gapCount: product.gapCount,
+          reconnectCount: binance.reconnectCount,
+          crossedBookCount: product.crossedBookCount,
+          eligibleForResearch: product.state === "healthy"
+        });
+      }
     }
-    const bybit = this.#bybit.diagnostics();
-    for (const product of bybit.products) {
-      output.push({
-        venue: "bybit",
-        product: bybitCanonicalProduct(product.product),
-        connectionState: product.state,
-        venueSequence: product.lastGoodVenueSequence,
-        gapCount: product.gapCount,
-        reconnectCount: bybit.reconnectCount,
-        crossedBookCount: product.crossedBookCount,
-        eligibleForResearch: product.state === "healthy"
-      });
+    const bybit = this.#bybit?.diagnostics();
+    if (bybit !== undefined) {
+      for (const product of bybit.products) {
+        output.push({
+          venue: "bybit",
+          product: bybitCanonicalProduct(product.product),
+          connectionState: product.state,
+          venueSequence: product.lastGoodVenueSequence,
+          gapCount: product.gapCount,
+          reconnectCount: bybit.reconnectCount,
+          crossedBookCount: product.crossedBookCount,
+          eligibleForResearch: product.state === "healthy"
+        });
+      }
     }
-    const kraken = this.#kraken.diagnostics();
-    for (const product of kraken.products) {
-      output.push({
-        venue: "kraken",
-        product: krakenCanonicalProduct(product.product),
-        connectionState: product.state,
-        venueSequence: product.lastGoodVenueSequence,
-        gapCount: product.gapCount,
-        reconnectCount: kraken.reconnectCount,
-        crossedBookCount: product.crossedBookCount,
-        eligibleForResearch: product.state === "healthy"
-      });
+    const kraken = this.#kraken?.diagnostics();
+    if (kraken !== undefined) {
+      for (const product of kraken.products) {
+        output.push({
+          venue: "kraken",
+          product: krakenCanonicalProduct(product.product),
+          connectionState: product.state,
+          venueSequence: product.lastGoodVenueSequence,
+          gapCount: product.gapCount,
+          reconnectCount: kraken.reconnectCount,
+          crossedBookCount: product.crossedBookCount,
+          eligibleForResearch: product.state === "healthy"
+        });
+      }
     }
     const jupiter = this.#jupiter?.diagnostics();
     if (jupiter !== undefined) {

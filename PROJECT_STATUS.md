@@ -1,15 +1,14 @@
 # Project Status
 
-- Current phase: original maker thesis remains a no-go; the repaired Coinbase/Jupiter run completed a final 88.82-hour screen and the broad collection gate is closed
-- Live execution: nonexistent and unauthorized
-- Deployed commit: `92d3b42`; all 14 public feeds were healthy after the bounded Jupiter response/reconnect repair
-- PM2 processes: `stable-corridor-collector` is stopped cleanly; automatic restart is disabled and no shadow, watchdog, or live process exists
-- Current finding: 152,102 repaired-run comparisons produced eight modeled 3+ bp public quotes across six episodes, none confirmed at the next same-route quote; two extreme August 10 clusters were non-guaranteed aggregator responses and justify only bounded requote/transaction-feasibility research
-- Implemented artifact: bounded unauthenticated four-venue collector, optional quote-only Jupiter EURC/USDC probe, verified gzip-only retention, unified streaming replay, guarded no-auth free-history import, and reproducible CEX/CEX and CEX/DEX screens
-- Runtime artifact: one explicitly named PM2 process with a pinned Node 24 interpreter, isolated paths, commit stamping, no credentials, and automatic restart disabled
-- Verification: the final local audit passed 1,193 of 1,193 immutable parts, 26,948,264 events, and 16,785,963,093 logical bytes; the repaired run contains 12,143,072 contiguous events, no duplicates, no open journals, both manifests, and zero journal errors
-- Storage decision: the reviewed plan reclaimed 6,776,183,693 VPS source bytes while retaining 375,093,132 verified gzip bytes and the local source mirror
-- Data-quality decision: Coinbase `sequence_num`, not adjacent numeric `trade_id`, is the documented delivery boundary; the corrected adapter preserves non-adjacent forward trades and journals structured continuity evidence
-- Runtime decision: the VPS runs Node.js 24.18.1 and existing workloads remain isolated
-- Next gate: archive the VPS source safely, then decide whether the six anomaly episodes justify a bounded immediate-requote and unsigned transaction-construction probe
-- Operator task: compress the stopped run on the VPS, generate and review a reclamation plan, and delete source journals only after the guarded plan matches the locally verified archive
+- Current phase: broad CEX and passive Coinbase/Jupiter collection are closed; one bounded public-only Coinbase/Jupiter anomaly-persistence probe is approved and implemented locally for deployment review
+- Live execution: nonexistent and unauthorized; no wallet, taker, transaction construction, signing, API key, order, transfer, or withdrawal path exists
+- Deployed commit: `b383b65`; `stable-corridor-collector` is stopped cleanly with PM2 automatic restart disabled
+- Current finding: 152,102 repaired-run comparisons produced eight modeled 3+ bp quotes across six episodes, none confirmed at the next same-route observation approximately 8.4 seconds later
+- Approved feed set: continuous Coinbase `EURC-USDC` and Jupiter `EURC-USDC` only; Binance, Bybit, Kraken, and Coinbase `USDC-EUR` remain available offline but are disabled in the probe configuration
+- Probe gate: an eligible 3 bp baseline quote journals a `cex_dex_probe` decision and schedules exactly three public same-route requotes at approximately 2.1, 4.2, and 6.3 seconds without recursive triggering
+- Verification: the final VPS audit passed 1,193 of 1,193 immutable gzip-only parts, 26,948,264 events, and 16,785,963,093 logical bytes with zero source-present journals
+- Storage decision: two reviewed passes reclaimed all 16,785,963,093 VPS source bytes while retaining 925,973,212 verified gzip bytes; future daily compression may be automated, but source reclamation remains manual and checksum-gated
+- Runtime boundary: one named PM2 collector, optional user-level compression timer, pinned Node.js 24.18.1, isolated paths, no automatic PM2 restart, and no changes to the HYPE system
+- Stop rule: run no more than seven days and stop early after five completed probes if none remains above 3 bp at the first follow-up
+- Pass rule: only two independent first-follow-up confirmations may justify a separate review of unsigned transaction construction; public requotes alone do not establish profitability or landing
+- Operator task: deploy the reviewed repository head, replace the host-local config with the narrowed two-feed config after diff review, install and test the compression timer, and verify exactly two healthy feeds

@@ -20,7 +20,8 @@ import {
   JUPITER_PUBLIC_PRODUCT,
   jupiterQuoteRequestKey,
   type JupiterApprovedInputAmount,
-  type JupiterQuoteRequest
+  type JupiterQuoteRequest,
+  type JupiterQuoteRequestContext
 } from "./constants.js";
 import {
   parseJupiterOrderQuote,
@@ -68,6 +69,7 @@ export interface JupiterQuoteObservation {
   readonly response: unknown;
   readonly requestStartedAtMs: number;
   readonly receivedTimestampMs: number;
+  readonly context?: JupiterQuoteRequestContext;
 }
 
 export class JupiterPublicAdapter {
@@ -180,6 +182,7 @@ export class JupiterPublicAdapter {
         guaranteedPrice: quote.guaranteedPrice,
         requestId: quote.requestId,
         quoteId: quote.quoteId ?? null,
+        probe: observation.context ?? { kind: "baseline" },
         routePlan: quote.routePlan.map((leg) => ({
           ammKey: leg.swapInfo.ammKey,
           label: leg.swapInfo.label,

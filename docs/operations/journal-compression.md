@@ -1,7 +1,7 @@
 # Verified Journal Compression and Source Reclamation
 
-**Status:** compression implemented and verified; reclamation planning
-implemented; no VPS reclamation plan has been applied
+**Status:** compression, planning, and checksum-gated reclamation are
+implemented and verified; the completed archive is gzip-only on the VPS
 
 Stable Corridor creates verified gzip copies of immutable closed journals.
 Compression never changes or removes a `.jsonl` source, `.jsonl.open`
@@ -98,7 +98,21 @@ checksum. Apply mode:
 A partial interruption is safe to resume with the same plan and checksum:
 already absent sources are accepted only when all retained artifacts still
 verify. A completed plan path cannot be overwritten with a new plan. The
-workflow is manual and is not called by the collector, PM2, or a timer.
+reclamation workflow is manual and is not called by the collector, PM2,
+or a timer.
+
+## Optional daily compression timer
+
+The bounded anomaly-probe deployment includes an optional user-level
+systemd timer under `deploy/systemd/`. It runs the same verified compressor
+once per UTC day with `--max-parts 100`, low CPU priority, and idle I/O
+priority. It operates only on immutable closed source journals and is safe
+to run while the collector writes separate `.open` journals.
+
+Install and verify it using
+`docs/operations/jupiter-anomaly-probe.md`. Timer activation does not
+authorize deletion: the source-reclamation plan, local audit, checksum
+review, and explicit apply boundary remain separate.
 
 ## Read-only VPS plan
 

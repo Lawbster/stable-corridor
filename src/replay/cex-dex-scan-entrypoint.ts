@@ -125,7 +125,8 @@ const parts = await discoverClosedJournalParts({
     "book_checkpoint",
     "book_delta",
     "feed_status",
-    "dex_quote"
+    "dex_quote",
+    "cex_dex_probe"
   ]),
   preferRepresentation: arguments_.preferRepresentation
 });

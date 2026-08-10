@@ -13,12 +13,11 @@ The repository is authoritative when chat context and repository state differ.
 
 ## Current authority
 
-The project is at the Stage B bounded-public-collector gate. The A1/A2
-foundation, Coinbase candidate adapter, Binance/Bybit/Kraken reference
-adapters, public-only runner, storage gate, health output, and named PM2
-artifact are implemented. The bounded public collector is deployed under
-the Stage B validation gate; no shadow, watchdog, or execution process is
-deployed.
+The broad Stage B collector and passive Coinbase/Jupiter information gates
+are complete. The only approved continuation is a bounded Stage C1 public
+anomaly-persistence probe using Coinbase `EURC-USDC` and quote-only Jupiter
+`EURC-USDC`. The named collector remains the sole process; no general shadow,
+watchdog, transaction-construction, or execution process is deployed.
 
 Authorized work:
 
@@ -30,6 +29,10 @@ Authorized work:
 - maintenance of the public, unauthenticated Bybit adapter for `USDTEUR`, `USDCEUR`, and `USDCUSDT`;
 - maintenance of the public, unauthenticated Kraken adapter for `EURC/USDC`, `EURC/EUR`, `EURC/USD`, `USDC/EUR`, and `USDC/USD`;
 - bounded public-only collector orchestration, periodic checkpoints, health, storage measurement, and venue reconnects;
+- optional venue blocks and non-empty approved product subsets so a reviewed run can omit irrelevant feeds;
+- the public-only Coinbase/Jupiter 3 bp anomaly comparator, append-only `cex_dex_probe` decisions, and exactly three rate-limited same-route requotes;
+- offline separation and reporting of baseline Jupiter samples and explicitly linked anomaly follow-ups;
+- the reviewed user-level daily compression timer, with source reclamation remaining manual and checksum-gated;
 - the named `stable-corridor-collector` PM2 artifact and its targeted pilot runbook;
 - repository documentation and public-only scaffolding;
 - test, storage, replay, telemetry, and deployment design;
@@ -44,6 +47,7 @@ Not authorized:
 
 - authenticated exchange clients;
 - API key creation or use;
+- Jupiter taker, wallet, transaction construction, signing, simulation, or submission;
 - order, cancel, transfer, withdrawal, or funding code;
 - live or paper-to-live execution processes;
 - changes to `/opt/bybit-rev` or the `reverse-copy` repository;

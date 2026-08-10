@@ -1,7 +1,8 @@
 # Current Findings
 
-**As of:** 2026-08-02
-**Research state:** deterministic public fixtures and collector contract only; no forward dataset or opportunity replay result
+**As of:** 2026-08-10
+**Research state:** broad forward collection and passive opportunity screens
+complete; bounded public anomaly-persistence probe approved
 
 ## Working thesis
 
@@ -399,3 +400,31 @@ public-quote anomaly," not to a proven edge. The stopped repaired run contains
 collection has completed its information gate. The detailed evidence and
 bounded follow-up boundary are in
 `research/repaired-jupiter-edge-screen-2026-08-10.md`.
+
+## Approved anomaly-persistence follow-up
+
+The final VPS archive audit passed all `1,193` immutable parts and
+`26,948,264` events after source reclamation. All parts are verified
+gzip-only on the VPS; the collector remains stopped at the completed broad
+gate.
+
+Continuous Binance, Bybit, Kraken, and Coinbase `USDC-EUR` collection is no
+longer justified. The approved follow-up retains only Coinbase `EURC-USDC`
+and Jupiter `EURC-USDC`, reducing measured raw generation by approximately
+81%. The other public adapters remain reproducible offline artifacts rather
+than active feeds.
+
+When a baseline Jupiter quote reaches the existing modeled 3 bp threshold
+against healthy executable Coinbase depth, the collector may journal one
+derived `cex_dex_probe` decision and prioritize exactly three quote-only
+same-route requests at the next approximately 2.1-second intervals. The
+requests remain keyless and omit a taker, so they cannot return an authorized
+wallet transaction or execute a swap. Follow-ups cannot recursively trigger
+another probe.
+
+The experiment runs for no more than seven days. Stop early after five
+completed probes if none remains above threshold at the first follow-up. At
+least two independent first-follow-up confirmations are required before a
+separate review may consider unsigned transaction construction. This is not
+authorization for a wallet, API key, signature, simulation, submission, or
+live trading component.

@@ -1,22 +1,16 @@
-import type { NormalizedEvent } from "../collector/schema/events.js";
 import type { ReplayPosition } from "../replay/order.js";
+import type { NormalizedEvent } from "../collector/schema/events.js";
+import {
+  CoinbaseExecutableBook,
+  compareCoinbaseJupiterQuote,
+  modeledCexDexEdgeBps,
+  type CexDexEdgeSample
+} from "./cex-dex-model.js";
 
-type BookCheckpointEvent = Extract<
-  NormalizedEvent,
-  { readonly eventType: "book_checkpoint" }
->;
-type BookDeltaEvent = Extract<
-  NormalizedEvent,
-  { readonly eventType: "book_delta" }
->;
-type DexQuoteEvent = Extract<
-  NormalizedEvent,
-  { readonly eventType: "dex_quote" }
->;
-
-export type CexDexDirection =
-  | "buy_eurc_jupiter_sell_coinbase"
-  | "buy_eurc_coinbase_sell_jupiter";
+export type {
+  CexDexDirection,
+  CexDexEdgeSample
+} from "./cex-dex-model.js";
 
 export interface CexDexScanOptions {
   readonly collectorRunId: string;
@@ -74,6 +68,8 @@ export interface CexDexScanReport {
   readonly observations: {
     readonly totalJupiterQuotes: number;
     readonly eligibleComparisons: number;
+    readonly eligibleBaselineComparisons: number;
+    readonly eligibleAnomalyFollowUpComparisons: number;
     readonly coinbaseBookUnavailable: number;
     readonly coinbaseFeedIneligible: number;
     readonly insufficientCoinbaseDepth: number;
@@ -102,6 +98,17 @@ export interface CexDexScanReport {
     readonly unresolvedStarts: number;
     readonly confirmationIntervalMs: Distribution;
   };
+  readonly triggeredRequotes: {
+    readonly caveat:
+      "public_requotes_do_not_prove_transaction_construction_or_landing";
+    readonly scheduledProbes: number;
+    readonly completedProbes: number;
+    readonly firstFollowUpsEvaluated: number;
+    readonly confirmedAtFirstFollowUp: number;
+    readonly confirmedThroughAllFollowUps: number;
+    readonly missingTriggerQuote: number;
+    readonly probes: readonly TriggeredProbeSummary[];
+  };
   readonly economicBearing: {
     readonly classification:
       | "insufficient_observation"
@@ -113,121 +120,38 @@ export interface CexDexScanReport {
   };
 }
 
-export interface CexDexEdgeSample {
-  readonly key: string;
-  readonly direction: CexDexDirection;
-  readonly inputAmount: string;
-  readonly receivedTimestampMs: number;
-  readonly quoteLatencyMs: number;
-  readonly router: string;
-  readonly capitalUsdc: number;
-  readonly coinbaseFeeNotionalUsdc: number;
-  readonly zeroFeePnlUsdc: number;
-  readonly grossEdgeBps: number;
-  readonly modeledNetEdgeBps: number;
-}
-
 interface PersistenceStart {
   readonly receivedTimestampMs: number;
   readonly modeledNetEdgeBps: number;
 }
 
-class CoinbaseReplayBook {
-  readonly #bids = new Map<number, number>();
-  readonly #asks = new Map<number, number>();
-  #ready = false;
+type CexDexProbeEvent = Extract<
+  NormalizedEvent,
+  { readonly eventType: "cex_dex_probe" }
+>;
 
-  get ready(): boolean {
-    return this.#ready;
-  }
+interface TriggeredFollowUpSummary {
+  readonly followUpIndex: number;
+  readonly receivedTimestampMs: number;
+  readonly intervalFromTriggerMs: number;
+  readonly modeledNetEdgeBps: number;
+  readonly router: string;
+}
 
-  reset(event: BookCheckpointEvent): void {
-    this.#bids.clear();
-    this.#asks.clear();
-    for (const level of event.payload.bids) {
-      this.#set(this.#bids, level.price, level.quantity);
-    }
-    for (const level of event.payload.asks) {
-      this.#set(this.#asks, level.price, level.quantity);
-    }
-    this.#ready = true;
-  }
-
-  apply(event: BookDeltaEvent): void {
-    if (
-      !this.#ready ||
-      event.payload.updateSemantics !== "absolute"
-    ) {
-      this.#ready = false;
-      return;
-    }
-    for (const change of event.payload.changes) {
-      this.#set(
-        change.side === "bid" ? this.#bids : this.#asks,
-        change.price,
-        change.quantity
-      );
-    }
-  }
-
-  crossed(): boolean {
-    const bid = this.#ordered(this.#bids, true)[0]?.[0];
-    const ask = this.#ordered(this.#asks, false)[0]?.[0];
-    return bid !== undefined && ask !== undefined && bid >= ask;
-  }
-
-  buyCost(quantity: number): number | null {
-    return this.#fill(this.#ordered(this.#asks, false), quantity);
-  }
-
-  sellProceeds(quantity: number): number | null {
-    return this.#fill(this.#ordered(this.#bids, true), quantity);
-  }
-
-  #set(side: Map<number, number>, price: string, quantity: string): void {
-    const priceNumber = Number(price);
-    const quantityNumber = Number(quantity);
-    if (
-      !Number.isFinite(priceNumber) ||
-      priceNumber <= 0 ||
-      !Number.isFinite(quantityNumber) ||
-      quantityNumber < 0
-    ) {
-      this.#ready = false;
-      return;
-    }
-    if (quantityNumber === 0) {
-      side.delete(priceNumber);
-    } else {
-      side.set(priceNumber, quantityNumber);
-    }
-  }
-
-  #ordered(
-    side: ReadonlyMap<number, number>,
-    descending: boolean
-  ): readonly (readonly [number, number])[] {
-    return [...side.entries()].sort(([left], [right]) =>
-      descending ? right - left : left - right
-    );
-  }
-
-  #fill(
-    levels: readonly (readonly [number, number])[],
-    requestedQuantity: number
-  ): number | null {
-    let remaining = requestedQuantity;
-    let quoteAmount = 0;
-    for (const [price, available] of levels) {
-      const filled = Math.min(remaining, available);
-      quoteAmount += filled * price;
-      remaining -= filled;
-      if (remaining <= 1e-9) {
-        return quoteAmount;
-      }
-    }
-    return null;
-  }
+interface TriggeredProbeSummary {
+  readonly probeId: string;
+  readonly direction: CexDexProbeEvent["payload"]["direction"];
+  readonly inputAmount: string;
+  readonly triggerReceivedTimestampMs: number;
+  readonly triggerModeledNetEdgeBps: number;
+  readonly decisionThresholdBps: number;
+  readonly expectedFollowUps: number;
+  readonly observedEligibleFollowUps: number;
+  readonly duplicateFollowUpIndexes: number;
+  readonly complete: boolean;
+  readonly firstFollowUpConfirmed: boolean;
+  readonly confirmedThroughAllFollowUps: boolean;
+  readonly followUps: readonly TriggeredFollowUpSummary[];
 }
 
 function percentile(
@@ -276,25 +200,6 @@ function thresholdTable(
   );
 }
 
-function modeledEdge(
-  sample: Pick<
-    CexDexEdgeSample,
-    "capitalUsdc" | "coinbaseFeeNotionalUsdc" | "zeroFeePnlUsdc"
-  >,
-  coinbaseFeeBps: number,
-  networkFeeUsdc: number,
-  executionBufferBps: number
-): number {
-  const fee =
-    sample.coinbaseFeeNotionalUsdc * (coinbaseFeeBps / 10_000);
-  return (
-    ((sample.zeroFeePnlUsdc - fee - networkFeeUsdc) /
-      sample.capitalUsdc) *
-      10_000 -
-    executionBufferBps
-  );
-}
-
 function routeSizeSummary(
   samples: readonly CexDexEdgeSample[]
 ): RouteSizeSummary {
@@ -330,6 +235,100 @@ function validateNonNegativeFinite(value: number, label: string): void {
   }
 }
 
+function summarizeTriggeredRequotes(
+  probeEvents: readonly CexDexProbeEvent[],
+  baselineByRequestId: ReadonlyMap<string, CexDexEdgeSample>,
+  followUpsByTrigger: ReadonlyMap<string, readonly CexDexEdgeSample[]>
+): CexDexScanReport["triggeredRequotes"] {
+  let missingTriggerQuote = 0;
+  const probes = probeEvents.map((event): TriggeredProbeSummary => {
+    if (!baselineByRequestId.has(event.payload.triggerRequestId)) {
+      missingTriggerQuote += 1;
+    }
+    const observed = [
+      ...(followUpsByTrigger.get(event.payload.triggerRequestId) ?? [])
+    ].sort(
+      (left, right) =>
+        (left.probe?.kind === "anomaly_follow_up"
+          ? left.probe.followUpIndex
+          : 0) -
+          (right.probe?.kind === "anomaly_follow_up"
+            ? right.probe.followUpIndex
+            : 0) ||
+        left.receivedTimestampMs - right.receivedTimestampMs
+    );
+    const byIndex = new Map<number, CexDexEdgeSample>();
+    let duplicateFollowUpIndexes = 0;
+    for (const sample of observed) {
+      if (sample.probe?.kind !== "anomaly_follow_up") {
+        continue;
+      }
+      if (byIndex.has(sample.probe.followUpIndex)) {
+        duplicateFollowUpIndexes += 1;
+      } else {
+        byIndex.set(sample.probe.followUpIndex, sample);
+      }
+    }
+    const threshold = Number(event.payload.model.decisionThresholdBps);
+    const followUps = [...byIndex.entries()]
+      .sort(([left], [right]) => left - right)
+      .map(([followUpIndex, sample]) => ({
+        followUpIndex,
+        receivedTimestampMs: sample.receivedTimestampMs,
+        intervalFromTriggerMs:
+          sample.receivedTimestampMs -
+          event.payload.triggerReceivedTimestampMs,
+        modeledNetEdgeBps: sample.modeledNetEdgeBps,
+        router: sample.router
+      }));
+    const complete = Array.from(
+      { length: event.payload.followUpCount },
+      (_, index) => index + 1
+    ).every((index) => byIndex.has(index));
+    const first = byIndex.get(1);
+    return {
+      probeId: event.payload.probeId,
+      direction: event.payload.direction,
+      inputAmount: event.payload.inputAmount,
+      triggerReceivedTimestampMs:
+        event.payload.triggerReceivedTimestampMs,
+      triggerModeledNetEdgeBps: Number(
+        event.payload.modeledNetEdgeBps
+      ),
+      decisionThresholdBps: threshold,
+      expectedFollowUps: event.payload.followUpCount,
+      observedEligibleFollowUps: byIndex.size,
+      duplicateFollowUpIndexes,
+      complete,
+      firstFollowUpConfirmed:
+        first !== undefined && first.modeledNetEdgeBps >= threshold,
+      confirmedThroughAllFollowUps:
+        complete &&
+        [...byIndex.values()].every(
+          (sample) => sample.modeledNetEdgeBps >= threshold
+        ),
+      followUps
+    };
+  });
+  return {
+    caveat:
+      "public_requotes_do_not_prove_transaction_construction_or_landing",
+    scheduledProbes: probes.length,
+    completedProbes: probes.filter((probe) => probe.complete).length,
+    firstFollowUpsEvaluated: probes.filter(
+      (probe) => probe.observedEligibleFollowUps > 0
+    ).length,
+    confirmedAtFirstFollowUp: probes.filter(
+      (probe) => probe.firstFollowUpConfirmed
+    ).length,
+    confirmedThroughAllFollowUps: probes.filter(
+      (probe) => probe.confirmedThroughAllFollowUps
+    ).length,
+    missingTriggerQuote,
+    probes
+  };
+}
+
 export async function scanCoinbaseJupiterQuotes(
   positions: AsyncIterable<ReplayPosition>,
   options: CexDexScanOptions
@@ -352,9 +351,13 @@ export async function scanCoinbaseJupiterQuotes(
     validateNonNegativeFinite(value, label);
   }
 
-  const book = new CoinbaseReplayBook();
+  const book = new CoinbaseExecutableBook();
   let coinbaseEligible = false;
   const samples: CexDexEdgeSample[] = [];
+  const followUpSamples: CexDexEdgeSample[] = [];
+  const baselineByRequestId = new Map<string, CexDexEdgeSample>();
+  const followUpsByTrigger = new Map<string, CexDexEdgeSample[]>();
+  const probeEvents: CexDexProbeEvent[] = [];
   const previousByKey = new Map<string, PersistenceStart>();
   const lastSampleAtByKey = new Map<string, number>();
   const confirmationIntervals: number[] = [];
@@ -386,6 +389,17 @@ export async function scanCoinbaseJupiterQuotes(
       continue;
     }
     if (
+      event.venue === "jupiter" &&
+      event.product === "EURC-USDC" &&
+      event.eventType === "cex_dex_probe"
+    ) {
+      probeEvents.push(event);
+      previousByKey.delete(
+        `${event.payload.direction}|${event.payload.inputAmount}`
+      );
+      continue;
+    }
+    if (
       event.venue !== "jupiter" ||
       event.product !== "EURC-USDC" ||
       event.eventType !== "dex_quote"
@@ -406,7 +420,7 @@ export async function scanCoinbaseJupiterQuotes(
       continue;
     }
 
-    const sample = compareQuote(event, book, {
+    const sample = compareCoinbaseJupiterQuote(event, book, {
       coinbaseFeeBps,
       modeledNetworkFeeUsdc,
       executionBufferBps
@@ -415,7 +429,16 @@ export async function scanCoinbaseJupiterQuotes(
       insufficientCoinbaseDepth += 1;
       continue;
     }
+    if (sample.probe?.kind === "anomaly_follow_up") {
+      followUpSamples.push(sample);
+      const entries =
+        followUpsByTrigger.get(sample.probe.triggerRequestId) ?? [];
+      entries.push(sample);
+      followUpsByTrigger.set(sample.probe.triggerRequestId, entries);
+      continue;
+    }
     samples.push(sample);
+    baselineByRequestId.set(sample.quoteRequestId, sample);
     lastSampleAtByKey.set(sample.key, sample.receivedTimestampMs);
 
     const previous = previousByKey.get(sample.key);
@@ -476,24 +499,35 @@ export async function scanCoinbaseJupiterQuotes(
   const qualifying = samples.filter(
     (sample) => sample.modeledNetEdgeBps >= decisionThresholdBps
   ).length;
+  const triggeredRequotes = summarizeTriggeredRequotes(
+    probeEvents,
+    baselineByRequestId,
+    followUpsByTrigger
+  );
   const classification:
     CexDexScanReport["economicBearing"]["classification"] =
     !sufficientlyObserved
       ? "insufficient_observation"
       : qualifying === 0
         ? "no_modeled_3bp_opportunity"
-        : confirmedAtNextQuote === 0
+        : triggeredRequotes.scheduledProbes > 0
+          ? triggeredRequotes.confirmedAtFirstFollowUp === 0
+            ? "sampled_3bp_not_persistent"
+            : "sampled_3bp_requires_execution_model"
+          : confirmedAtNextQuote === 0
           ? "sampled_3bp_not_persistent"
           : "sampled_3bp_requires_execution_model";
 
   const feeSensitivity = Object.fromEntries(
     [0, 0.1, 0.45].map((feeBps) => {
       const edges = samples.map((sample) =>
-        modeledEdge(
+        modeledCexDexEdgeBps(
           sample,
-          feeBps,
-          modeledNetworkFeeUsdc,
-          executionBufferBps
+          {
+            coinbaseFeeBps: feeBps,
+            modeledNetworkFeeUsdc,
+            executionBufferBps
+          }
         )
       );
       return [
@@ -527,7 +561,9 @@ export async function scanCoinbaseJupiterQuotes(
     },
     observations: {
       totalJupiterQuotes,
-      eligibleComparisons: samples.length,
+      eligibleComparisons: samples.length + followUpSamples.length,
+      eligibleBaselineComparisons: samples.length,
+      eligibleAnomalyFollowUpComparisons: followUpSamples.length,
       coinbaseBookUnavailable,
       coinbaseFeedIneligible,
       insufficientCoinbaseDepth,
@@ -554,6 +590,7 @@ export async function scanCoinbaseJupiterQuotes(
       ).length,
       confirmationIntervalMs: distribution(confirmationIntervals)
     },
+    triggeredRequotes,
     economicBearing: {
       classification,
       isProfitabilityResult: false,
@@ -565,90 +602,4 @@ export async function scanCoinbaseJupiterQuotes(
       ]
     }
   };
-}
-
-function compareQuote(
-  event: DexQuoteEvent,
-  book: CoinbaseReplayBook,
-  model: {
-    readonly coinbaseFeeBps: number;
-    readonly modeledNetworkFeeUsdc: number;
-    readonly executionBufferBps: number;
-  }
-): CexDexEdgeSample | null {
-  const inputAmount = Number(event.payload.inputAmount);
-  const outputAmount = Number(event.payload.outputAmount);
-  if (
-    !Number.isFinite(inputAmount) ||
-    inputAmount <= 0 ||
-    !Number.isFinite(outputAmount) ||
-    outputAmount <= 0
-  ) {
-    return null;
-  }
-  if (
-    event.payload.inputAsset === "USDC" &&
-    event.payload.outputAsset === "EURC"
-  ) {
-    const proceeds = book.sellProceeds(outputAmount);
-    if (proceeds === null) {
-      return null;
-    }
-    const zeroFeePnlUsdc = proceeds - inputAmount;
-    const base = {
-      key: `buy_eurc_jupiter_sell_coinbase|${event.payload.inputAmount}`,
-      direction:
-        "buy_eurc_jupiter_sell_coinbase" as const,
-      inputAmount: event.payload.inputAmount,
-      receivedTimestampMs: event.receivedTimestampMs,
-      quoteLatencyMs: event.payload.quoteLatencyMs,
-      router: event.payload.router,
-      capitalUsdc: inputAmount,
-      coinbaseFeeNotionalUsdc: proceeds,
-      zeroFeePnlUsdc,
-      grossEdgeBps: (zeroFeePnlUsdc / inputAmount) * 10_000
-    };
-    return {
-      ...base,
-      modeledNetEdgeBps: modeledEdge(
-        base,
-        model.coinbaseFeeBps,
-        model.modeledNetworkFeeUsdc,
-        model.executionBufferBps
-      )
-    };
-  }
-  if (
-    event.payload.inputAsset === "EURC" &&
-    event.payload.outputAsset === "USDC"
-  ) {
-    const cost = book.buyCost(inputAmount);
-    if (cost === null) {
-      return null;
-    }
-    const zeroFeePnlUsdc = outputAmount - cost;
-    const base = {
-      key: `buy_eurc_coinbase_sell_jupiter|${event.payload.inputAmount}`,
-      direction:
-        "buy_eurc_coinbase_sell_jupiter" as const,
-      inputAmount: event.payload.inputAmount,
-      receivedTimestampMs: event.receivedTimestampMs,
-      quoteLatencyMs: event.payload.quoteLatencyMs,
-      router: event.payload.router,
-      capitalUsdc: cost,
-      coinbaseFeeNotionalUsdc: cost,
-      zeroFeePnlUsdc,
-      grossEdgeBps: (zeroFeePnlUsdc / cost) * 10_000
-    };
-    return {
-      ...base,
-      modeledNetEdgeBps: modeledEdge(
-        base,
-        model.coinbaseFeeBps,
-        model.modeledNetworkFeeUsdc,
-        model.executionBufferBps
-      )
-    };
-  }
-  return null;
 }

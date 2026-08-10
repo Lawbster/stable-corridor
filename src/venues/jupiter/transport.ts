@@ -3,7 +3,8 @@ import {
   JUPITER_ASSETS,
   JUPITER_SWAP_V2_ORDER_URL,
   type JupiterApprovedInputAmount,
-  type JupiterQuoteRequest
+  type JupiterQuoteRequest,
+  type JupiterQuoteRequestContext
 } from "./constants.js";
 
 export interface JupiterPublicQuoteSessionOptions {
@@ -16,7 +17,8 @@ export interface JupiterPublicQuoteSessionOptions {
     request: JupiterQuoteRequest,
     response: unknown,
     requestStartedAtMs: number,
-    receivedTimestampMs: number
+    receivedTimestampMs: number,
+    context: JupiterQuoteRequestContext
   ) => void | Promise<void>;
   readonly onFailure: (
     error: Error,
@@ -75,8 +77,13 @@ export class JupiterPublicQuoteSession {
   readonly #requests: readonly JupiterQuoteRequest[];
   readonly #now: () => number;
   readonly #fetch: typeof fetch;
+  readonly #priorityRequests: Array<{
+    readonly request: JupiterQuoteRequest;
+    readonly context: JupiterQuoteRequestContext;
+  }> = [];
   #controller: AbortController | undefined;
   #runPromise: Promise<void> | undefined;
+  #baselineIndex = 0;
   #closeCode: number | undefined;
   #closeReason = "";
 
@@ -139,57 +146,107 @@ export class JupiterPublicQuoteSession {
     this.#controller?.abort();
   }
 
+  scheduleAnomalyFollowUps(
+    request: JupiterQuoteRequest,
+    triggerRequestId: string,
+    followUpCount: number
+  ): void {
+    if (this.#runPromise === undefined || this.#controller?.signal.aborted) {
+      throw new Error("Jupiter quote session is not active");
+    }
+    if (
+      triggerRequestId.length < 1 ||
+      triggerRequestId.length > 256
+    ) {
+      throw new Error("Invalid Jupiter anomaly trigger request ID");
+    }
+    if (
+      !Number.isSafeInteger(followUpCount) ||
+      followUpCount < 1 ||
+      followUpCount > 10
+    ) {
+      throw new Error("Invalid Jupiter anomaly follow-up count");
+    }
+    const approved = this.#requests.some(
+      (candidate) =>
+        candidate.inputAsset === request.inputAsset &&
+        candidate.outputAsset === request.outputAsset &&
+        candidate.inputAmount === request.inputAmount &&
+        candidate.inputAmountAtomic === request.inputAmountAtomic
+    );
+    if (!approved) {
+      throw new Error("Jupiter anomaly follow-up request is not approved");
+    }
+    if (this.#priorityRequests.length > 0) {
+      throw new Error("A Jupiter anomaly follow-up is already scheduled");
+    }
+    for (let followUpIndex = 1; followUpIndex <= followUpCount; followUpIndex += 1) {
+      this.#priorityRequests.push({
+        request,
+        context: {
+          kind: "anomaly_follow_up",
+          triggerRequestId,
+          followUpIndex
+        }
+      });
+    }
+  }
+
   async #run(signal: AbortSignal): Promise<void> {
     while (!signal.aborted) {
-      for (const request of this.#requests) {
+      const priority = this.#priorityRequests.shift();
+      const request =
+        priority?.request ?? this.#requests[this.#baselineIndex]!;
+      const context = priority?.context ?? ({ kind: "baseline" } as const);
+      if (priority === undefined) {
+        this.#baselineIndex =
+          (this.#baselineIndex + 1) % this.#requests.length;
+      }
+      const startedAtMs = this.#now();
+      try {
+        const timeout = AbortSignal.timeout(
+          this.#options.requestTimeoutMs
+        );
+        const combined = AbortSignal.any([signal, timeout]);
+        const response = await this.#fetch(
+          createJupiterOrderUrl(request),
+          {
+            method: "GET",
+            headers: { accept: "application/json" },
+            signal: combined
+          }
+        );
+        const parsed = await responseJsonBounded(
+          response,
+          this.#options.maxResponseBytes
+        );
+        await this.#options.onQuote(
+          request,
+          parsed,
+          startedAtMs,
+          this.#now(),
+          context
+        );
+        await this.#delayFrom(
+          startedAtMs,
+          this.#options.minimumRequestIntervalMs,
+          signal
+        );
+      } catch (error) {
         if (signal.aborted) {
           return;
         }
-        const startedAtMs = this.#now();
-        try {
-          const timeout = AbortSignal.timeout(
-            this.#options.requestTimeoutMs
-          );
-          const combined = AbortSignal.any([signal, timeout]);
-          const response = await this.#fetch(
-            createJupiterOrderUrl(request),
-            {
-              method: "GET",
-              headers: { accept: "application/json" },
-              signal: combined
-            }
-          );
-          const parsed = await responseJsonBounded(
-            response,
-            this.#options.maxResponseBytes
-          );
-          await this.#options.onQuote(
-            request,
-            parsed,
-            startedAtMs,
-            this.#now()
-          );
-          await this.#delayFrom(
-            startedAtMs,
-            this.#options.minimumRequestIntervalMs,
-            signal
-          );
-        } catch (error) {
-          if (signal.aborted) {
-            return;
-          }
-          const failure =
-            error instanceof Error ? error : new Error(String(error));
-          await this.#options.onFailure(failure, this.#now());
-          await this.#delayFrom(
-            startedAtMs,
-            Math.max(
-              this.#options.retryDelayMs,
-              this.#options.minimumRequestIntervalMs
-            ),
-            signal
-          );
-        }
+        const failure =
+          error instanceof Error ? error : new Error(String(error));
+        await this.#options.onFailure(failure, this.#now());
+        await this.#delayFrom(
+          startedAtMs,
+          Math.max(
+            this.#options.retryDelayMs,
+            this.#options.minimumRequestIntervalMs
+          ),
+          signal
+        );
       }
     }
   }

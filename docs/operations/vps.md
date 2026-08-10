@@ -1,6 +1,7 @@
 # VPS Boundaries
 
-**Status:** Initial bounded 72-hour validation complete; collector remains deployed.
+**Status:** Broad collection complete and archived; narrowed public anomaly
+probe approved but not yet redeployed
 
 ## Isolation
 
@@ -79,9 +80,10 @@ Hetzner Cloud Volumes are replicated storage but are not included in server back
 No volume should be purchased or attached before the measured pilot demonstrates the need.
 
 The collector writes normalized journals uncompressed and records
-checksummed metadata when a part closes. Compression and source
-reclamation are separate manual operator commands; neither runs in the
-collector process or on a schedule.
+checksummed metadata when a part closes. Compression remains outside the
+collector process and may run through the reviewed user-level daily
+systemd timer. Source reclamation remains a separate manual,
+checksum-gated operator action and never runs on a timer.
 
 The first approximately 20-hour sample measured `1.81 GiB/day` of
 uncompressed Stable Corridor data. Collector RSS was approximately
@@ -131,13 +133,13 @@ Their `6,776,183,693` source bytes produced `375,093,132` gzip bytes, a
 pull and compression-aware audit verified every gzip while retaining all
 600 source journals.
 
-A checksum-gated reclamation tool is implemented but has not been applied
-on the VPS. Its default mode is read-only with respect to the data root:
-it verifies source, source metadata, gzip, and compression metadata and
-writes an exact plan under the separate state root. Applying a reviewed
-plan is an explicit destructive operation that removes only its listed
-`.jsonl` sources. It remains a separate operator approval and never runs
-inside the collector.
+The completed archive was reclaimed in two reviewed checksum-bound passes.
+The final VPS audit verified `1,193/1,193` immutable parts and
+`26,948,264` events with all `1,193` representations gzip-only and no
+source journal remaining. The logical source size is
+`16,785,963,093` bytes; retained gzip data is `925,973,212` bytes. Future
+source reclamation remains an explicit operator approval and never runs
+inside the collector or compression timer.
 
 ## Reserved PM2 names
 

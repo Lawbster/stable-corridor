@@ -22,36 +22,21 @@ describe("collector configuration", () => {
     expect(config.storage.minFreeBytes).toBe(40 * 1024 * 1024 * 1024);
     expect(config.runtime.healthIntervalMs).toBe(30_000);
     expect(config.runtime.restRequestTimeoutMs).toBe(10_000);
-    expect(config.coinbase.products).toEqual([
-      "EURC-USDC",
-      "USDC-EUR"
-    ]);
-    expect(config.coinbase.staleAfterMs).toBe(5_000);
-    expect(config.binance.products).toEqual([
-      "EURUSDC",
-      "EURIUSDC",
-      "USDCUSD"
-    ]);
-    expect(config.binance.staleAfterMs).toBe(300_000);
-    expect(config.bybit.products).toEqual([
-      "USDTEUR",
-      "USDCEUR",
-      "USDCUSDT"
-    ]);
-    expect(config.bybit.staleAfterMs).toBe(300_000);
-    expect(config.bybit.pingIntervalMs).toBe(20_000);
-    expect(config.kraken.products).toEqual([
-      "EURC/USDC",
-      "EURC/EUR",
-      "EURC/USD",
-      "USDC/EUR",
-      "USDC/USD"
-    ]);
-    expect(config.kraken.depth).toBe(25);
-    expect(config.kraken.staleAfterMs).toBe(300_000);
+    expect(config.coinbase?.products).toEqual(["EURC-USDC"]);
+    expect(config.coinbase?.staleAfterMs).toBe(5_000);
+    expect(config.binance).toBeUndefined();
+    expect(config.bybit).toBeUndefined();
+    expect(config.kraken).toBeUndefined();
     expect(config.jupiter?.product).toBe("EURC-USDC");
     expect(config.jupiter?.inputAmounts).toEqual(["1000", "10000"]);
     expect(config.jupiter?.minimumRequestIntervalMs).toBe(2_100);
+    expect(config.jupiter?.anomalyProbe).toEqual({
+      coinbaseFeeBps: 0.1,
+      modeledNetworkFeeUsdc: 0.01,
+      executionBufferBps: 2,
+      decisionThresholdBps: 3,
+      followUpCount: 3
+    });
   });
 
   it("keeps Jupiter opt-in and enforces the public rate floor", async () => {
@@ -158,7 +143,7 @@ describe("collector configuration", () => {
     ).toBe(false);
   });
 
-  it("rejects an incomplete Coinbase product universe", () => {
+  it("accepts reviewed non-empty venue product subsets", () => {
     const example = {
       schemaVersion: 1,
       processName: "stable-corridor-collector",
@@ -218,10 +203,10 @@ describe("collector configuration", () => {
       }
     };
 
-    expect(collectorConfigSchema.safeParse(example).success).toBe(false);
+    expect(collectorConfigSchema.safeParse(example).success).toBe(true);
   });
 
-  it("rejects an incomplete Binance product universe", async () => {
+  it("accepts optional reference venues with product subsets", async () => {
     const contents = await readFile(
       resolve("config/collector.example.json"),
       "utf8"
@@ -235,15 +220,6 @@ describe("collector configuration", () => {
       maxFrameBytes: 1024 * 1024
     };
 
-    expect(collectorConfigSchema.safeParse(example).success).toBe(false);
-  });
-
-  it("rejects an incomplete Bybit product universe", async () => {
-    const contents = await readFile(
-      resolve("config/collector.example.json"),
-      "utf8"
-    );
-    const example = JSON.parse(contents) as Record<string, unknown>;
     example.bybit = {
       products: ["USDTEUR"],
       staleAfterMs: 30_000,
@@ -253,15 +229,6 @@ describe("collector configuration", () => {
       pingIntervalMs: 20_000
     };
 
-    expect(collectorConfigSchema.safeParse(example).success).toBe(false);
-  });
-
-  it("rejects an incomplete Kraken product universe", async () => {
-    const contents = await readFile(
-      resolve("config/collector.example.json"),
-      "utf8"
-    );
-    const example = JSON.parse(contents) as Record<string, unknown>;
     example.kraken = {
       products: ["EURC/USDC"],
       depth: 25,
@@ -269,6 +236,45 @@ describe("collector configuration", () => {
       maxRecentTradeIds: 10_000,
       maxFrameBytes: 1024 * 1024
     };
-    expect(collectorConfigSchema.safeParse(example).success).toBe(false);
+    expect(collectorConfigSchema.safeParse(example).success).toBe(true);
+  });
+
+  it("rejects empty or duplicate product subsets", async () => {
+    const contents = await readFile(
+      resolve("config/collector.example.json"),
+      "utf8"
+    );
+    const example = JSON.parse(contents) as Record<string, unknown>;
+    const coinbase = example.coinbase as Record<string, unknown>;
+    expect(
+      collectorConfigSchema.safeParse({
+        ...example,
+        coinbase: { ...coinbase, products: [] }
+      }).success
+    ).toBe(false);
+    expect(
+      collectorConfigSchema.safeParse({
+        ...example,
+        coinbase: {
+          ...coinbase,
+          products: ["EURC-USDC", "EURC-USDC"]
+        }
+      }).success
+    ).toBe(false);
+  });
+
+  it("requires Coinbase EURC-USDC for the anomaly probe", async () => {
+    const contents = await readFile(
+      resolve("config/collector.example.json"),
+      "utf8"
+    );
+    const example = JSON.parse(contents) as Record<string, unknown>;
+    const coinbase = example.coinbase as Record<string, unknown>;
+    expect(
+      collectorConfigSchema.safeParse({
+        ...example,
+        coinbase: { ...coinbase, products: ["USDC-EUR"] }
+      }).success
+    ).toBe(false);
   });
 });
