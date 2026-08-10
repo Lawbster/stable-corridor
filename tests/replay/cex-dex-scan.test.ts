@@ -182,4 +182,39 @@ describe("Coinbase/Jupiter replay screen", () => {
     expect(report.sampledPersistence.evaluatedStarts).toBe(1);
     expect(report.sampledPersistence.confirmedAtNextQuote).toBe(0);
   });
+
+  it("summarizes sample sets larger than the variadic argument limit", async () => {
+    const checkpoint = makeBookCheckpointEvent({
+      collectorRunId,
+      connectionId,
+      receivedTimestampMs: startedAtMs + 100,
+      bidPrice: "1.12",
+      askPrice: "1.121",
+      bidQuantity: "2000",
+      askQuantity: "2000"
+    });
+    const repeatedQuote = quote(startedAtMs + 200, "900", 3);
+    const sampleCount = 150_000;
+    async function* largeSample(): AsyncGenerator<ReplayPosition> {
+      yield position(checkpoint, 1);
+      yield position(healthyFeed(startedAtMs + 110), 2);
+      for (let index = 0; index < sampleCount; index += 1) {
+        yield position(repeatedQuote, index + 3);
+      }
+    }
+
+    const report = await scanCoinbaseJupiterQuotes(largeSample(), {
+      collectorRunId,
+      minimumSamplesPerRouteSize: 0,
+      minimumObservationHours: 0
+    });
+
+    expect(report.observations.eligibleComparisons).toBe(sampleCount);
+    const gross =
+      report.byRouteSize[
+        "buy_eurc_jupiter_sell_coinbase|1000"
+      ]!.grossEdgeBps;
+    expect(gross.minimum).toBeCloseTo(80);
+    expect(gross.maximum).toBeCloseTo(80);
+  });
 });

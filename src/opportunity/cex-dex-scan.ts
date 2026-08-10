@@ -231,26 +231,26 @@ class CoinbaseReplayBook {
 }
 
 function percentile(
-  values: readonly number[],
+  sortedValues: readonly number[],
   fraction: number
 ): number | null {
-  if (values.length === 0) {
+  if (sortedValues.length === 0) {
     return null;
   }
-  const sorted = [...values].sort((left, right) => left - right);
-  return sorted[
-    Math.floor((sorted.length - 1) * fraction)
+  return sortedValues[
+    Math.floor((sortedValues.length - 1) * fraction)
   ]!;
 }
 
 function distribution(values: readonly number[]): Distribution {
+  const sorted = [...values].sort((left, right) => left - right);
   return {
-    p05: percentile(values, 0.05),
-    p50: percentile(values, 0.5),
-    p95: percentile(values, 0.95),
-    p99: percentile(values, 0.99),
-    minimum: values.length === 0 ? null : Math.min(...values),
-    maximum: values.length === 0 ? null : Math.max(...values)
+    p05: percentile(sorted, 0.05),
+    p50: percentile(sorted, 0.5),
+    p95: percentile(sorted, 0.95),
+    p99: percentile(sorted, 0.99),
+    minimum: sorted[0] ?? null,
+    maximum: sorted.at(-1) ?? null
   };
 }
 
